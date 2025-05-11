@@ -1,0 +1,65 @@
+---
+description: Persistent tasks and guidelines for writing the extended abstract, developing an LCT layer, benchmarking NanoGPT, and maintaining AGENT.md.
+globs: 
+alwaysApply: true
+---
+
+## Deliverables & Checklists
+
+### 1️⃣ Extended Abstract (≥2 pages, ≤4 pages)
+- [ ] Conform to NeurIPS 2025 **style & formatting** (double-column, 10-pt font).  
+  Reference: <https://neurips.cc/Conferences/2025/Submission>
+- [ ] Clear statement of problem & contribution.  
+  *Hint*: "We propose replacing Fourier-based linear layers with an adaptive LCT layer parameterised by \(a,b,c\) that strictly generalises the DFT."
+- [ ] Include empirical table comparing NanoGPT + LCT vs baseline.
+- [ ] Release **source \+ compiled PDF** in `paper/`.
+
+### 2️⃣ LCT Layer
+- [ ] Implement `class LCTLayer(nn.Module)` with learnable `a, b, c` (real scalars) and analytical inverse.
+- [ ] JIT-friendly & GPU-compatible (support bf16 & fp8 where available).
+- [ ] Unit tests validating:  
+  * (i) reduces to FFT when \(a=0,b=1,c=0\)  
+  * (ii) inverse reconstruction loss < 1e-6.
+  * (iii) special-case coverage (Laplace, Fourier, fractional variants, Fresnel; check unitarity & reference matrices).
+- [ ] TorchScript export passes.
+
+### 3️⃣ Benchmark
+- [ ] Provision target machine via `run.sh` or Justfile recipe.
+- [ ] Compare tokens/sec of baseline vs LCT-augmented model.
+- [ ] Log wandb run URLs in `records/`.
+
+### 4️⃣ Agent Plan (`AGENT.md`)
+- [ ] Keep chronological log of thoughts, decisions, and next actions.  Prefer checklist style.
+- [ ] Each atomic change ⇒ *one git commit* (`git add -p` + signed commit).
+- [ ] Update `CHANGELOG.md` with semver bumps.
+
+---
+
+## Development Conventions
+
+* Use **`uv`** for Python dependencies; no `pip`/`conda`.
+* Linters: `ruff`, `mypy`, `black` – configured in `pyproject.toml`.
+* Prefer **functional style** & small composable units.
+* Plot intermediates with **Plotly**.
+* All code ≥ Python 3.12.
+
+---
+
+## Automation Hooks
+
+Whenever the same shell command is executed ≥3 times, propose a **Justfile** target.  Store common one-liners in `.just-cache/`.
+
+---
+
+## Common Pitfalls
+
+| Pitfall | Fix |
+|---------|-----|
+| Forgetting to bump version in `pyproject.toml` after API change | `just version:bump` |
+| Committing large notebooks | Avoid – use VSCode `# %%` files |
+| Missing CHANGELOG entry | Add under `## [Unreleased]` |
+
+---
+
+_End of rule_
+
