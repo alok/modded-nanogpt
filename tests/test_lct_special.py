@@ -3,7 +3,7 @@ from __future__ import annotations
 # flake8: noqa: F401
 # pyright: reportMissingImports=false, reportGeneralTypeIssues=false
 
-"""Tests for special parameter regimes of the Linear Canonical Transform.
+r"""Tests for special parameter regimes of the Linear Canonical Transform.
 
 At certain \((a, b, c)\) values the LCT collapses to well-known integral
 transforms with closed-form matrix realisations.  This file currently checks
