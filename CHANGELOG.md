@@ -8,3 +8,4 @@
 
 ### Changed
 - Deprecated `.cursorrules` in favour of the canonical rule file.
+- Refactored `tests/test_lct_special.py` to derive the Fourier reference via `torch.fft.fft`, cleaned up linter issues, and streamlined parametrisation.

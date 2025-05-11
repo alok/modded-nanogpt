@@ -10,20 +10,17 @@ dependencies = [
     "pytorch-triton>=3.2.0",
     "huggingface-hub>=0.26.2",
     "tqdm>=4.67.0",
+    "pytest>=8.1.1",
 ]
 
 [tool.uv]
-environments = [
-    "sys_platform == 'linux'",
-]
+environments = ["sys_platform == 'linux'"]
 
 [tool.uv.sources]
 torch = [
     { url = "https://github.com/YouJiacheng/pytorch-nightly-whl-archive/releases/download/v2.7.0.dev20250208/torch-2.7.0.dev20250208+cu126-cp312-cp312-manylinux_2_28_x86_64.whl" },
 ]
-pytorch-triton = [
-    { index = "pytorch-nightly-cu126" },
-]
+pytorch-triton = [{ index = "pytorch-nightly-cu126" }]
 
 [[tool.uv.index]]
 name = "pytorch-nightly-cu126"

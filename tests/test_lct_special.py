@@ -1,51 +1,76 @@
-import math
-import cmath
-from typing import List, Tuple
+from __future__ import annotations
 
-import numpy as np
+# flake8: noqa: F401
+# pyright: reportMissingImports=false, reportGeneralTypeIssues=false
+
+"""Tests for special parameter regimes of the Linear Canonical Transform.
+
+At certain \((a, b, c)\) values the LCT collapses to well-known integral
+transforms with closed-form matrix realisations.  This file currently checks
+the *Fourier* special case against :pyfunc:`torch.fft.fft` which acts as our
+oracle.  Additional cases (Laplace, fractional Fourier, Fresnel, degenerate
+Gaussian) will be filled in once the LCT kernel is implemented.
+"""
+
+from typing import Tuple
+
 import pytest
 import torch
 
 from torchlayers.lct import LCTLayer
 
 # -----------------------------------------------------------------------------
-# Helper: reference orthonormal DFT matrix (conjugate 2π convention)
+# Parametrisation of special cases (name, (a, b, c))
 # -----------------------------------------------------------------------------
 
-def dft_matrix(n: int) -> np.ndarray:
-    """Return the unitary NxN DFT matrix using the 1/√N normalisation."""
-    k = np.arange(n).reshape((n, 1))
-    j = np.arange(n).reshape((1, n))
-    w = np.exp(-2j * math.pi * k * j / n)
-    return w / math.sqrt(n)
+SPECIAL_CASES: Tuple[Tuple[str, Tuple[float, float, float]], ...] = (
+    ("fourier", (0.0, 1.0, 0.0)),
+)
 
 
 # -----------------------------------------------------------------------------
-# Parametrisation of special cases: (name, (a, b, c), reference_matrix_fn)
-# Only Fourier is fully specified for now; others are TODO.
+# Helper utilities
 # -----------------------------------------------------------------------------
 
-SPECIAL_CASES: List[Tuple[str, Tuple[float, float, float], callable]] = [
-    ("fourier", (0.0, 1.0, 0.0), lambda n: dft_matrix(n)),
-    # TODO: fill in laplace, fractional_fourier, fresnel, degenerate cases
-]
+def _fourier_reference(n: int) -> torch.Tensor:  # noqa: D401
+    """Return the unitary DFT matrix via :pyfunc:`torch.fft.fft`."""
+
+    eye = torch.eye(n, dtype=torch.complex64)
+    return torch.fft.fft(eye, norm="ortho")
 
 
-@pytest.mark.parametrize("name, params, ref_fn", SPECIAL_CASES)
+# Map case name → reference generator.  Extensible for future special cases.
+_REFERENCE_DISPATCH = {"fourier": _fourier_reference}
+
+
+# -----------------------------------------------------------------------------
+# Actual tests
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name, params", SPECIAL_CASES)
 @pytest.mark.xfail(reason="LCT forward kernel not yet implemented")
-def test_special_case(name: str, params: Tuple[float, float, float], ref_fn):
-    n = 4  # Small size for sanity
+def test_special_case_matrix(name: str, params: Tuple[float, float, float]):
+    """LCT layer should reproduce the analytic matrix for each special case."""
+
+    n = 4  # Small sanity-sized transform
     x = torch.eye(n, dtype=torch.complex64)
+
     layer = LCTLayer(a=params[0], b=params[1], c=params[2], normalized=True)
     out = layer(x)
-    expected = torch.tensor(ref_fn(n), dtype=torch.complex64)
-    assert torch.allclose(out, expected, atol=1e-4), f"Mismatch for {name}"
+
+    expected = _REFERENCE_DISPATCH[name](n)
+
+    assert torch.allclose(out, expected, atol=1e-4), f"Mismatch for {name} case"
 
 
 @pytest.mark.xfail(reason="Unitarity property check pending implementation")
-def test_unitarity_fourier():
+def test_fourier_unitarity():
+    """DFT matrix should be unitary: FᴴF = I."""
+
     n = 4
-    layer = LCTLayer(a=0.0, b=1.0, c=0.0, normalized=True)
-    # Out = layer applied to identity should be the DFT matrix
-    dft = torch.tensor(dft_matrix(n), dtype=torch.complex64)
-    assert torch.allclose(dft.conj().T @ dft, torch.eye(n, dtype=torch.complex64), atol=1e-4)
+    dft = _fourier_reference(n)
+
+    # Unitarity ⇒ FᴴF = I (within tolerance)
+    prod = dft.conj().T @ dft
+    assert torch.allclose(prod, torch.eye(n, dtype=torch.complex64), atol=1e-4)
