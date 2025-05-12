@@ -90,12 +90,9 @@ image = (
     modal.Image.from_registry("pytorch/pytorch:2.2.1-cuda12.1-cudnn8-runtime")
     # Basic build toolchain and git for editable installs
     .apt_install("git", "curl", "build-essential")
-    # Install the standalone `uv` binary (preferred over PyPI wheel for speed).
-    # Official installer lives at /install.sh (see https://docs.astral.sh/uv).
-    .run_commands("curl -LsSf https://astral.sh/uv/install.sh | sh")
-    .pip_install("uv")
+    # Copy the project into the image early so that requirements.txt is present for subsequent commands
     .add_local_dir(
-        ".", 
+        ".",
         "/root/app",
         ignore=[
             ".git",
@@ -132,9 +129,28 @@ image = (
             "ENV/",
             ".env.bak",
             ".venv.bak",
-            ".DS_Store"
-        ]
+            ".DS_Store",
+        ],
     )
+    # Install the standalone `uv` binary (preferred over PyPI wheel for speed).
+    # Official installer lives at /install.sh (see https://docs.astral.sh/uv).
+    .run_commands(
+        # Install standalone `uv` binary for dependency management.
+        "curl -LsSf https://astral.sh/uv/install.sh | sh",
+        # Ensure `uv` itself is available on PATH for subsequent commands.
+        "pip install --no-cache-dir uv",
+        # Install Python 3.12 into the image so we match the local dev version.
+        "export UV_NO_CONFIG=1 && uv python install 3.12",
+        # Create an isolated virtual-environment (preferred over system site-packages).
+        "PY312=$(uv python find 3.12) && $PY312 -m venv /root/venv",
+        # Upgrade pip inside the venv.
+        "/root/venv/bin/pip install --upgrade pip",
+        # Install runtime requirements (including nightly CUDA wheels for PyTorch).
+        "/root/venv/bin/pip install --extra-index-url https://download.pytorch.org/whl/nightly/cu126 --extra-index-url https://download.pytorch.org/whl/torch_dev.html --pre -r /root/app/requirements.txt",
+        # Editable install of the project itself so imports like `import modded_nanogpt` work.
+        "/root/venv/bin/pip install -e /root/app",
+    )
+    .env({"VIRTUAL_ENV": "/root/venv", "PATH": "/root/venv/bin:$PATH"})
 )
 
 @app.function(
@@ -170,16 +186,15 @@ def run_benchmark(use_lct: bool = False) -> Dict[str, Union[float, str]]:
         print(f"[modal] Benchmark failed: {str(e)}", file=sys.stderr, flush=True)
         raise
 
-@app.function(image=image)
+@app.function(image=image, timeout=900)
 async def main():
     """Run both LCT and baseline benchmarks in parallel."""
     try:
         print("[modal] Starting benchmarks...", flush=True)
         
-        # Ensure the current container has the same Python environment as the
-        # worker containers running `run_benchmark` so that deserialisation of
-        # their results (which may reference `torch` objects) succeeds.
-        download_dependencies()
+        # Ensure subsequent paths (e.g. requirements.txt) resolve correctly inside the
+        # container by switching to the project root that was copied to /root/app.
+        os.chdir("/root/app")
 
         import torch  # type: ignore  # noqa: F401 – required for Modal deserialisation
  
