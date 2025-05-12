@@ -45,7 +45,11 @@ def _chirp_phase(
 
     n = torch.arange(length, device=device, dtype=torch.float32)
     if centered:
-        n = n - length // 2
+        # Use *half-sample* centring so that the discrete grid is symmetric
+        # about zero (e.g. for *N = 8* we want the range ``[-3.5, …, 3.5]``
+        # instead of ``[-4, …, 3]``).  This avoids the inadvertent index
+        # reflection observed in the forward → inverse round-trip tests.
+        n = n - (length - 1) / 2  # keeps the transform self-consistent
 
     # Imaginary component of the exponent: π * coeff * n²
     # (Real part is zero.)  Supports autograd when *coeff* is a learnable
@@ -90,11 +94,19 @@ def linear_canonical_transform(
         sqrt_d = torch.sqrt(torch.tensor(d, dtype=x.dtype, device=x.device))
 
         idx = torch.arange(N, device=x.device, dtype=torch.float32)
-        if centered:
-            idx = idx - N // 2
 
-        # Simple nearest-neighbour resample for MVP; refine later.
-        sample_pos = (scale * idx).round().clamp(0, N - 1).to(torch.long)
+        if centered:
+            # Use half-sample centring consistent with `_chirp_phase` so that
+            # *identity* parameters map each index to itself and avoid the
+            # degeneracy observed in earlier implementations.
+            idx_centered = idx - (N - 1) / 2
+            sample_pos = scale * idx_centered + (N - 1) / 2
+        else:
+            sample_pos = scale * idx
+
+        # Nearest-neighbour resample (placeholder – upgrade to interpolation
+        # once demanded by experiments).
+        sample_pos = sample_pos.round().clamp(0, N - 1).to(torch.long)
         resampled = x.index_select(dim, sample_pos)
 
         chirp = _chirp_phase(N, c * d, device=x.device, dtype=x.dtype, centered=centered)
@@ -116,7 +128,7 @@ def linear_canonical_transform(
 
     X = X * torch.moveaxis(chirp_out, 0, dim)
 
-    const = 1.0 / torch.sqrt(1j * torch.tensor(b, dtype=x.dtype, device=x.device))
+    const = torch.rsqrt(1j * torch.tensor(b, dtype=x.dtype, device=x.device))
     return const * X
 
 
