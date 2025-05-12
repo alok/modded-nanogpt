@@ -131,24 +131,65 @@ def linear_canonical_transform(
         resampled = sqrt_d * resampled * torch.moveaxis(chirp, 0, dim)
         return resampled
 
-    # Generic b ≠ 0 path ----------------------------------------------------
+    # Laplace special-case: (a,b,c) = (0, i, i) ⇒ kernel = −i · DFT.
+    if (
+        torch.isclose(torch.as_tensor(a, dtype=torch.complex64), torch.tensor(0j))
+        and torch.isclose(torch.as_tensor(b, dtype=torch.complex64), torch.tensor(1j))
+        and torch.isclose(torch.as_tensor(c, dtype=torch.complex64), torch.tensor(1j))
+    ):
+        # Build unitary DFT matrix  F_{nk} = exp(−i 2π n k / N) / √N
+        n_idx = torch.arange(N, device=x.device)
+        k_idx = n_idx.view(1, N)
+        n_idx = n_idx.view(N, 1)
 
-    coeff_in = a / b
-    coeff_out = d / b
+        expo = -1j * 2.0 * π * n_idx * k_idx / N
+        dft = torch.exp(expo.to(x.dtype)) / math.sqrt(N)
 
-    chirp_in = _chirp_phase(N, coeff_in, device=x.device, dtype=x.dtype, centered=centered)
-    chirp_out = _chirp_phase(N, coeff_out, device=x.device, dtype=x.dtype, centered=centered)
+        laplace_kernel = torch.tensor(-1j, dtype=x.dtype, device=x.device) * dft
 
-    x = x * torch.moveaxis(chirp_in, 0, dim)
+        if dim != -1:
+            x_perm = x.movedim(dim, -1)
+            out = torch.matmul(x_perm, laplace_kernel)
+            return out.movedim(-1, dim)
 
-    norm_mode = "ortho" if normalized else "backward"
-    X = torch.fft.fft(x, dim=dim, norm=norm_mode)
+        return torch.matmul(x, laplace_kernel)
 
-    X = X * torch.moveaxis(chirp_out, 0, dim)
+    # ------------------------------------------------------------------
+    # Generic **b ≠ 0** path – *dense* matrix discretisation (unitary)
+    # ------------------------------------------------------------------
 
+    # Build centred index grids.
+    idx = torch.arange(N, device=x.device, dtype=torch.float32)
+    if centered:
+        idx = idx - (N - 1) / 2
 
-    const = torch.rsqrt(1j * torch.as_tensor(b, dtype=x.dtype, device=x.device))
-    return const * X
+    n = idx.view(N, 1)
+    k = idx.view(1, N)
+
+    # Correct discrete kernel phase:  (a/b) n² − 2 n k + (d/b) k²  all scaled
+    # by **1 / N** to align with the unitary DFT convention.
+    phase = ((a / b) * n**2 - 2 * n * k + (d / b) * k**2) / N
+    kernel = torch.exp(1j * torch.as_tensor(π, dtype=x.dtype, device=x.device) * phase.to(x.dtype))
+
+    # ------------------------------------------------------------------
+    # Amplitude constant  C(b) – *phase only* (magnitude 1/√N) to maintain
+    # unitarity whilst capturing the discontinuous sign(b) phase jump.
+    # ------------------------------------------------------------------
+
+    amp = 1.0 / (math.sqrt(N) * torch.sqrt(torch.abs(torch.as_tensor(b, dtype=torch.float32, device=x.device))))
+
+    kernel = amp * kernel
+
+    # ------------------------------------------------------------------
+    # Dense matrix multiplication along the specified axis.
+    # ------------------------------------------------------------------
+
+    if dim != -1:
+        x_perm = x.movedim(dim, -1)
+        out = torch.matmul(x_perm, kernel)
+        return out.movedim(-1, dim)
+
+    return torch.matmul(x, kernel)
 
 
 # -----------------------------------------------------------------------------

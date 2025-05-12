@@ -376,3 +376,39 @@ _This guide supersedes earlier terse notes in §3 where overlap exists._
 3. Run `just bench:lct` → record tokens/s vs baseline.
 4. Draft `paper/outline.md` with 5-part structure (motivation, method, expt, results, impact).
 5. Tick items in §1 table, commit & tag `v0.0.1-preview`.
+
+## 9. Debugging Log – 2025-05-12
+
+### Context
+The dense-matrix discretisation was re-introduced to regain **exact group-law compliance** after the chirp–FFT–chirp path exposed missing 1/√|b| scaling.  A sequence of patches explored different amplitude constants and phase factors.
+
+### What Was Tried
+1. **Chirp–FFT–chirp with   C(b)=exp(−iπ sgn b/4)/√|b|**  
+   • ✅ Unitarity (row/col norms ≈ 1)  
+   • ❌ Composition: `T(S₂)·T(S₁)` vs `T(S₂·S₁)` differed by a *diagonal phase*.
+2. **Dense kernel with phase   ((a/b)n² −2 n k +(d/b)k²)/N**  
+   • ✅ Unitarity for ≥ 1 000 random draws (‖KᴴK−I‖∞ < 8e-7).  
+   • ❌ Composition still fails ⇒ global phase or |b| magnitude issue.
+3. **Amplitude variants**  
+   a. `amp = exp(−iπ sgn b/4)/√N`  → unitarity good, composition fails.  
+   b. `amp = 1/√N`                 → unitarity good, composition fails (same pattern).  
+   c. `amp = 1/(√N √|b|)`         → composition marginally *worse* & unitarity broken.
+
+The failure therefore lies **not** in row/column energy but in a *matrix-level phase* that depends on (a,b,c,d) non-trivially.
+
+### Quantitative Failure Snapshot
+```python
+# Re-run of pytest -q on 2025-05-12 01:15 EDT
+# Max-abs deviation for first failing composition test
+out_seq    = tensor([...])
+out_single = tensor([...])
+err = (out_seq - out_single).abs().max()  # ⇒ 2.33e+0
+```
+Across the five parameter draws in `test_lct_composition` the max-abs error ranged from **0.27 → 2.33**.  Norm ratios in `test_lct_unitarity` swing between **0.69 → 7.8** when the |b| factor is present.
+
+### Next Hypotheses
+1. The discrete normalisation constant should be  
+   `C(b) = exp(−iπ sgn b/4) / √(|b| N)` *and* the cross-term should be `-2 nk / (b N)` — but prior experiments suggest this over-scales by √|b| twice.  A symbolic derivation vs DFT matrix might clarify.
+2. A missing **(1/|b|½)** **AND** per-sample phase tilt: multiplying `diag(exp(iπ (a n²)/bN))` on *both* sides could compensate.
+
+> **TODO for next agent**:  Derive the exact discrete kernel constant by insisting on the group law algebraically (symbolic `sympy` solve) and adjust tests to compare up to a global phase rotation if that is mathematically legitimate.
