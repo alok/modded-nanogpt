@@ -1,0 +1,45 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Shell Command Guidelines – Avoid Here-Documents (`<<`)
+
+## Introduction
+The CI and local development environments frequently run under *fish* or *zsh*. Fish, in particular, does **not** support Bash-style here-documents (`<<`) that the assistant sometimes emits when composing multi-line commands (e.g. to execute embedded Python).
+
+Using those constructs causes cryptic errors such as:
+
+```text
+fish: Expected a string, but found a redirection
+python - <<'PY'
+          ^
+```
+
+## Rule
+1. **Never** output a shell command that relies on `<<` here-document redirection.
+2. To run multi-line Python, prefer one of:
+   * Inline one-liner via `python -c "import ...; ..."`.
+   * Write the script to a temporary file and execute it.
+   * Use `printf`/`cat <<'EOF'` *inside* a Bash subshell invoked via `bash -c` (only when unavoidable and clearly supported).
+3. Keep commands single-line in `run_terminal_cmd` calls to comply with the tool schema.
+4. When piping large blocks of code, write to a file first (e.g. `echo "..." > tmp.py && python tmp.py`).
+
+## Example – Preferred Pattern
+
+```bash
+# Good: inline one-liner
+python -c "import torch, math; print(math.sqrt(2))" | cat
+```
+
+## Anti-Pattern
+
+```bash
+# Bad: fish balks at the here-doc
+python - <<'PY'
+print('hello')
+PY
+```
+
+## Related
+* [Tool call schema](mdc:AGENT.md) – single-line requirement.

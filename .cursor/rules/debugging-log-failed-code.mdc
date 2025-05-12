@@ -1,0 +1,57 @@
+---
+description: 
+globs: **.py
+alwaysApply: false
+---
+# Recording Failed Code Attempts During Debugging
+
+## Introduction / Problem
+
+Debug sessions often involve multiple hypotheses and experimental code fragments.  When a particular approach **fails**, the same idea is frequently re-tried later by another developer or AI agent, wasting time.  Capturing these unsuccessful attempts ‑ together with a short note *why* they failed ‑ builds a historical knowledge base that accelerates future debugging.
+
+`AGENT.md` already serves as the chronological engineering log for this project.  This rule formalises the practice of adding "did-not-work" snippets there under a **Failed Experiments** heading whenever you discover an approach that *looked plausible* but ultimately proved incorrect or ineffective.
+
+## Pattern Description
+
+1. While debugging or prototyping, if you discard a code fragment because it breaks tests, violates invariants, or underperforms, **copy** the minimal failing snippet into `AGENT.md`.
+2. Add a **one-sentence rationale** explaining the failure (e.g., *"Double √N normalisation over-scaled the FFT by √N twice causing unitarity to break."*).
+3. Prefer "before / after" diffs when the fix is small; otherwise embed the snippet in a fenced code block with language specifier.
+4. Prepend an ISO-8601 timestamp (use the helper `get_current_time`) so the log remains chronological.
+5. Keep the section concise: delete surrounding boilerplate; preserve just enough context to recognise the idea.
+6. When the same pitfall resurfaces, reference the earlier entry instead of re-inlining the code.
+
+```markdown
+## Failed Experiments
+
+### 2025-05-12T14:07-0400 – Double √N Factor
+```python
+# WRONG: applied √N normalisation twice during chirp–FFT–chirp
+X = torch.fft.fft(x) / math.sqrt(N) / math.sqrt(N)
+```
+*Breaks unitarity (row norms 0.69→7.8).*  Fixed by removing the second factor.
+```
+
+## Implementation Steps
+
+1. Upon discarding an approach, **immediately** log it under `AGENT.md > Failed Experiments`.
+2. Commit the change with a signed, atomic commit message like:
+   ```
+   docs(agent): log failed double-normalisation attempt in LCT chirp path
+   ```
+3. Push as part of the same debugging branch so CI history mirrors the discovery process.
+
+## Common Pitfalls / Anti-Patterns
+
+| Pitfall | Fix |
+| ------- | ---- |
+| Forgetting to log failed snippets | Add a checklist item in your TDD loop: *Write down why it failed*. |
+| Logging whole files | Extract only the minimal failing fragment plus rationale. |
+| Vague explanations ("didn't work") | State the *specific* symptom (exception, wrong output, perf regression). |
+
+## Real-World Examples
+
+* See the **Debugging Log – 2025-05-12** section in [AGENT.md](mdc:../../AGENT.md) for a detailed record of unitarity failures and wrong kernel constants.
+
+## Automation Hint
+
+After three manual additions, consider a **Justfile** target `agent:log-failed` that appends stamped snippets automatically, or a pre-commit hook that reminds authors when deleting >10 lines of code without accompanying note in `AGENT.md`.

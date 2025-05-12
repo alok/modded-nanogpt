@@ -1,0 +1,72 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Pytest Debugging & Verbose Mode
+
+## Introduction / Problem
+
+Debugging failing tests often requires *immediate* and *complete* feedback (assert diff, captured stdout/err, print statements).  The default Pytest configuration truncates output and hides `print` statements unless a test fails, making iterative diagnosis slower.  This rule describes the recommended command‐line flags and workflow for running the test-suite in **verbose** mode with unbuffered output.
+
+## Pattern Description
+
+* **Preferred invocation**
+
+  ```bash
+  pytest -vv -s
+  ```
+
+  • `-v` (verbose) prints the test node id; doubled (`-vv`) shows full parametrised ids.
+  • `-s` disables output capture so `print()` and logging reach the console immediately.
+
+* **Single-test loop**
+
+  ```bash
+  pytest -vv -s tests/test_lct.py::test_unitarity
+  ```
+
+* **Interactive debugger on failure**
+
+  ```bash
+  pytest -vv -s --pdb
+  ```
+
+  Or set once:
+
+  ```bash
+  export PYTHONBREAKPOINT=ipdb.set_trace
+  pytest -vv -s
+  ```
+
+* **Fast-fail during TDD**
+
+  ```bash
+  pytest -vv -s -x  # stop after first failure
+  ```
+
+### Automation Hint
+
+If you notice yourself typing the same incantation ≥3 times, add a Justfile recipe:
+
+```makefile
+pytest::
+    pytest -vv -s
+```
+
+## Real-World Examples
+
+* [test_lct.py](mdc:../../tests/test_lct.py)
+* [test_lct_properties.py](mdc:../../tests/test_lct_properties.py)
+
+## Common Pitfalls
+
+| Pitfall | Fix |
+| --- | --- |
+| Output captured/missing | Add `-s`. |
+| Parametrised id truncation | Use `-vv`. |
+| Wall of red with many failures | Combine with `-x` or `--maxfail=1`. |
+
+## See Also
+
+* Pytest docs: <https://docs.pytest.org/en/latest/how-to/usage.html#usage>
