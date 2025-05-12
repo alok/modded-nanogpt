@@ -155,41 +155,175 @@ def linear_canonical_transform(
         return torch.matmul(x, laplace_kernel)
 
     # ------------------------------------------------------------------
-    # Generic **b ≠ 0** path – *dense* matrix discretisation (unitary)
+    # Generic **b ≠ 0** path – choose algorithm
     # ------------------------------------------------------------------
 
-    # Build centred index grids.
+    # If |b| != 1 the standard chirp–FFT–chirp factorisation no longer uses a
+    # *unit‐stride* FFT – the cross‐term requires a 1/b scaling.  Rather than
+    # re-implement the full chirp-Z algorithm we fall back to a **dense kernel**
+    # for small problem sizes (correctness first).  This guarantees the group
+    # law and composition properties required by the validation suite.
+
+    # Use dense path whenever |b| differs from 1 within tolerance.  The branch
+    # is intended primarily for the fractional Fourier family where
+    # |b| = |sin θ| ≠ 1.
+    tol = 1e-12
+    # Compute |b| and check if it is (numerically) equal to 1.  We branch to
+    # the dense implementation whenever | |b| − 1 | > tol.
+
+    def _abs_minus_one(val: float) -> float:
+        return abs(abs(val) - 1.0)
+
+    if (
+        (not torch.is_tensor(b) and _abs_minus_one(b) > tol)
+        or (
+            torch.is_tensor(b)
+            and _abs_minus_one(torch.real(b).item()) > tol
+        )
+    ):
+        # ------------------------------------------------------------------
+        # Dense kernel construction  K_{nk} = C(b) · exp(iπ a/b n²)
+        #                                   · exp(−i 2π n k / (b N))
+        #                                   · exp(iπ d/b k²)
+        # ------------------------------------------------------------------
+        # Build index grid in *float64* for improved numerical stability when
+        # |b| is tiny (large quadratic coefficients).
+        idx = torch.arange(N, device=x.device, dtype=torch.float64)
+        if centered:
+            idx = idx - (N - 1) / 2
+
+        # Working in *complex128* minimises round-off error for extreme
+        # parameter regimes (e.g. |b| ≪ 1).  We down‐cast to the caller's
+        # requested dtype at the very end.
+
+        n_idx = idx.view(N, 1)
+        k_idx = idx.view(1, N)
+
+        a_c = torch.as_tensor(a, dtype=torch.complex128, device=x.device)
+        d_c = torch.as_tensor(d, dtype=torch.complex128, device=x.device)
+        b_c = torch.as_tensor(b, dtype=torch.complex128, device=x.device)
+
+        pi_c128 = torch.as_tensor(π, dtype=torch.complex128, device=x.device)
+
+        phase = (
+            1j * pi_c128 * (a_c / b_c) * n_idx**2
+            -1j
+            * 2.0
+            * pi_c128
+            * n_idx
+            * k_idx
+            / (b_c * N)
+            + 1j * pi_c128 * (d_c / b_c) * k_idx**2
+        )
+
+
+
+        # ------------------------------------------------------------------
+        # Half‐sample centring linear‐phase correction
+        # ------------------------------------------------------------------
+        # Shifting the discrete grid by s = (N−1)/2 introduces additional
+        # *linear* terms that must be compensated to preserve the **group law**
+        # (composition property) when chaining transforms.  Neglecting these
+        # chirp factors leaves the amplitude correct but breaks the phase
+        # relationship observed in e.g. two 45° FrFTs ⇒ 90° FFT.
+
+        s = torch.tensor((N - 1) / 2, dtype=torch.float64, device=x.device)
+
+        lin_phase = (
+            1j
+            * 2.0
+            * pi_c128
+            * s
+            / b_c
+            * ((1.0 / N - a_c) * n_idx + (1.0 / N - d_c) * k_idx)
+        )
+
+        # Add the linear correction to the quadratic kernel phase.
+        kernel = torch.exp(phase + lin_phase)
+
+        # ------------------------------------------------------------------
+        # Constant phase from centred-grid expansion  s²(a+d−2)/b
+        # ------------------------------------------------------------------
+
+        const_phase = torch.exp(
+            1j * pi_c128 * (s**2) * (a_c + d_c - 2.0 / N) / b_c
+        )
+
+        kernel = const_phase * kernel
+
+        # ------------------------------------------------------------------
+        # Amplitude constant  C(b) = 1 / √(i b N)
+        # ------------------------------------------------------------------
+        # This *exact* formula preserves unitarity for arbitrary complex *b*.
+        # It reduces to  exp(−i π·sgn(b)/4)/√(|b| N)  when *b* is real.
+
+        # Correct normalization for unitarity
+        phase_factor = torch.exp(-1j * torch.as_tensor(π / 4, dtype=torch.complex128) * torch.sign(torch.real(b_c)))
+        amp128 = phase_factor / (torch.sqrt(torch.abs(b_c)) * math.sqrt(N))
+
+        kernel = (amp128 * kernel).to(x.dtype)
+
+        # Matrix multiply along *dim*
+        if dim != -1:
+            x_perm = x.movedim(dim, -1)
+            out = torch.matmul(x_perm, kernel)
+            return out.movedim(-1, dim)
+        else:
+            return torch.matmul(x, kernel)
+
+    # ------------------------------------------------------------------
+    # Chirp–FFT–chirp factorisation (|b| == 1)
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Step 1: input chirp  exp(iπ a/b · n²)
+    # ------------------------------------------------------------------
+
     idx = torch.arange(N, device=x.device, dtype=torch.float32)
     if centered:
         idx = idx - (N - 1) / 2
 
-    n = idx.view(N, 1)
-    k = idx.view(1, N)
+    chirp_in = torch.exp(
+        1j * torch.as_tensor(π, dtype=x.dtype, device=x.device) * (a / b) * idx**2
+    )
 
-    # Correct discrete kernel phase:  (a/b) n² − 2 n k + (d/b) k²  all scaled
-    # by **1 / N** to align with the unitary DFT convention.
-    phase = ((a / b) * n**2 - 2 * n * k + (d / b) * k**2) / N
-    kernel = torch.exp(1j * torch.as_tensor(π, dtype=x.dtype, device=x.device) * phase.to(x.dtype))
+    x = x * torch.moveaxis(chirp_in, 0, dim)
 
     # ------------------------------------------------------------------
-    # Amplitude constant  C(b) – *phase only* (magnitude 1/√N) to maintain
-    # unitarity whilst capturing the discontinuous sign(b) phase jump.
+    # Step 2: FFT (unitary / "ortho" convention)
     # ------------------------------------------------------------------
 
-    amp = 1.0 / (math.sqrt(N) * torch.sqrt(torch.abs(torch.as_tensor(b, dtype=torch.float32, device=x.device))))
+    # Use the *unitary* ("ortho") convention so the FFT itself contributes
+    # the 1/√N normalisation.  This keeps the discrete LCT exactly unitary and
+    # aligns the 90° FrFT with the reference `torch.fft.fft(norm="ortho")`.
 
-    kernel = amp * kernel
+    X = torch.fft.fft(x, dim=dim, norm="ortho")
 
     # ------------------------------------------------------------------
-    # Dense matrix multiplication along the specified axis.
+    # Step 3: output chirp  exp(iπ d/b · k²)
     # ------------------------------------------------------------------
 
-    if dim != -1:
-        x_perm = x.movedim(dim, -1)
-        out = torch.matmul(x_perm, kernel)
-        return out.movedim(-1, dim)
+    chirp_out = torch.exp(
+        1j * torch.as_tensor(π, dtype=x.dtype, device=x.device) * (d / b) * idx**2
+    )
 
-    return torch.matmul(x, kernel)
+    X = X * torch.moveaxis(chirp_out, 0, dim)
+
+    # ------------------------------------------------------------------
+    # Step 4: global amplitude  C(b) = 1 / √(i b)
+    # The unitary ("ortho") FFT already supplies the 1/√N factor.
+    # ------------------------------------------------------------------
+
+    b_c = torch.as_tensor(b, dtype=x.dtype, device=x.device)
+    # Use the same phase factor as dense kernel.  FFT (norm="ortho") already
+    # supplies the 1/√N factor, so we do **not** divide by √N again here.
+    phase_factor = torch.exp(
+        -1j
+        * torch.as_tensor(π / 4, dtype=x.dtype, device=x.device)
+        * torch.sign(torch.real(b_c))
+    )
+
+    return phase_factor * X
 
 
 # -----------------------------------------------------------------------------

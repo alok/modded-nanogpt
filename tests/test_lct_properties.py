@@ -47,14 +47,38 @@ def _rand_param(rng: random.Random) -> float:
     return val
 
 
-def _random_symplectic(rng: random.Random) -> Tuple[float, float, float, float]:  # noqa: D401
-    """Sample random real parameters (a,b,c,d) with ad − bc = 1 and b ≠ 0."""
+def _random_symplectic(
+    rng: random.Random,
+    *,
+    real_only: bool = False,
+) -> Tuple[complex, complex, complex, complex]:  # noqa: D401
+    """Sample **complex** parameters ``(a,b,c,d)`` with the unimodular constraint.
 
-    b = _rand_param(rng)
-    a = _rand_param(rng)
-    c = _rand_param(rng)
-    d = symplectic_d(a, b, c)  # ensures determinant = 1
-    return float(a), float(b), float(c), float(d)
+    Args
+    ----
+    rng
+        Random-number generator instance.
+    real_only
+        When *True*, imaginary parts are forced to **zero** (legacy behaviour).
+
+    Notes
+    -----
+    Keeping a flag avoids littering call-sites with post-hoc casts.  The new
+    default exercises the full complex path so edge cases receive coverage.
+    """
+
+    def _rand_complex_param() -> complex:
+        real = _rand_param(rng)
+        imag = 0.0 if real_only else _rand_param(rng)
+        return complex(real, imag)
+
+    b: complex = _rand_complex_param()
+    a: complex = _rand_complex_param()
+    c: complex = _rand_complex_param()
+
+    d: complex = symplectic_d(a, b, c)  # type: ignore[assignment]
+
+    return a, b, c, d
 
 
 # -----------------------------------------------------------------------------
@@ -70,7 +94,8 @@ def test_symplectic_determinant(_: int) -> None:
     a, b, c, d = _random_symplectic(rng)
 
     det = a * d - b * c
-    assert math.isclose(det, 1.0, rel_tol=0.0, abs_tol=1e-6)
+    # For complex values we compare the *magnitude* of the deviation from 1.
+    assert abs(det - 1.0) < 1e-6
 
 
 @pytest.mark.parametrize("_", range(10))
@@ -78,17 +103,27 @@ def test_lct_unitarity(_: int) -> None:
     """The LCT should be L²-norm preserving for real parameters with b ≠ 0."""
 
     rng = random.Random(42 + _)
-    a, b, c, d = _random_symplectic(rng)
+    # Unitarity holds generically **only for real parameters**.  Force
+    # imaginary components zero for this specific test.
+    a, b, c, d = _random_symplectic(rng, real_only=True)
 
     N = 16
     x = torch.randn(N, dtype=torch.complex64)
 
+    # Convert parameters to tensors so type checker is satisfied.
+    a_t, b_t, c_t, d_t = (
+        torch.as_tensor(a, dtype=torch.complex64),
+        torch.as_tensor(b, dtype=torch.complex64),
+        torch.as_tensor(c, dtype=torch.complex64),
+        torch.as_tensor(d, dtype=torch.complex64),
+    )
+
     y = linear_canonical_transform(
         x,
-        a=a,
-        b=b,
-        c=c,
-        d=d,
+        a=a_t,
+        b=b_t,
+        c=c_t,
+        d=d_t,
         normalized=True,
         centered=True,
     )
@@ -107,12 +142,14 @@ def test_lct_composition(_: int) -> None:
 
     # Second transform (a2,b2,c2,d2)
     a2, b2, c2, d2 = _random_symplectic(rng)
-
+    
+    # Stack parameters into 2x2 matrices
+    M1 = torch.tensor([[a1, b1], [c1, d1]], dtype=torch.complex128)
+    M2 = torch.tensor([[a2, b2], [c2, d2]], dtype=torch.complex128)
+    
     # Matrix multiplication M = M2 @ M1
-    a = a2 * a1 + b2 * c1
-    b = a2 * b1 + b2 * d1
-    c = c2 * a1 + d2 * c1
-    d = c2 * b1 + d2 * d1
+    M = torch.matmul(M2, M1)
+    a, b, c, d = M[0, 0].item(), M[0, 1].item(), M[1, 0].item(), M[1, 1].item()
 
     N = 8
     x = torch.randn(N, dtype=torch.complex64)
@@ -121,17 +158,17 @@ def test_lct_composition(_: int) -> None:
     out_seq = linear_canonical_transform(
         linear_canonical_transform(
             x,
-            a=a1,
-            b=b1,
-            c=c1,
-            d=d1,
+            a=torch.as_tensor(a1, dtype=torch.complex64),
+            b=torch.as_tensor(b1, dtype=torch.complex64),
+            c=torch.as_tensor(c1, dtype=torch.complex64),
+            d=torch.as_tensor(d1, dtype=torch.complex64),
             normalized=True,
             centered=True,
         ),
-        a=a2,
-        b=b2,
-        c=c2,
-        d=d2,
+        a=torch.as_tensor(a2, dtype=torch.complex64),
+        b=torch.as_tensor(b2, dtype=torch.complex64),
+        c=torch.as_tensor(c2, dtype=torch.complex64),
+        d=torch.as_tensor(d2, dtype=torch.complex64),
         normalized=True,
         centered=True,
     )
@@ -139,10 +176,10 @@ def test_lct_composition(_: int) -> None:
     # Single equivalent transform
     out_single = linear_canonical_transform(
         x,
-        a=a,
-        b=b,
-        c=c,
-        d=d,
+        a=torch.as_tensor(a, dtype=torch.complex64),
+        b=torch.as_tensor(b, dtype=torch.complex64),
+        c=torch.as_tensor(c, dtype=torch.complex64),
+        d=torch.as_tensor(d, dtype=torch.complex64),
         normalized=True,
         centered=True,
     )

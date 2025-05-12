@@ -82,9 +82,11 @@ class LCTLayer(nn.Module):
 
         a, b, c = self.a, self.b, self.c
 
-        # Fast path – pure Fourier special case avoids invalid a=0 division and
-        # matches the expectation in the test-suite.
-        if torch.isclose(a, torch.tensor(0.0)) and torch.isclose(c, torch.tensor(0.0)):
+        zero_a = torch.zeros_like(a, dtype=a.dtype, device=a.device)
+        zero_c = torch.zeros_like(c, dtype=c.dtype, device=c.device)
+
+        # Fast path – pure Fourier special case (a = 0, c = 0)
+        if torch.allclose(a, zero_a) and torch.allclose(c, zero_c):
             norm = "ortho" if self.normalized else "backward"
             return torch.fft.fft(x, dim=-1, norm=norm)
 

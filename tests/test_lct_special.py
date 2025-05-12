@@ -32,9 +32,6 @@ from torchlayers.lct import LCTLayer
 # Parametrisation of special cases (name, (a, b, c))
 # -----------------------------------------------------------------------------
 
-# NOTE: Laplace case requires complex parameters (0, i, i) and is not yet
-# implemented in the forward kernel, so we mark it as xfail for now.
-
 SPECIAL_CASES: Sequence[Any] = (
     ("fourier", (0.0, 1.0, 0.0)),
     ("laplace", (0j, 1j, 1j)),
