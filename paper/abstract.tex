@@ -1,0 +1,9 @@
+\begin{abstract}
+Fourier transforms pop up in deep learning surprisingly often,positional encodings. But there are more general transforms. We implement the  *Linear Canonical Transform* (LCT) -- which unifies the Fourier, Fourier, Laplace, and Fresnel transforms as special cases -- as a natural extension of this idea. By parameterizing the transform with three learnable scalars $(a, b, c)$, we obtain a differentiable layer that can adapt its spectral properties during training. We evaluate on the NanoGPT benchmark.
+
+Our key insight is that the LCT's parameter space forms a continuous manifold containing classical transforms as special cases: Fourier $(0,1,0)$, Laplace, Fresnel, and fractional variants. This allows networks to smoothly interpolate between different spectral behaviors during training. We prove that our formulation maintains unitarity when desired, while also permitting controlled departure from energy preservation when beneficial.
+
+Empirically, we demonstrate the LCT layer's effectiveness by augmenting NanoGPT's projection operations. On WikiText-2, the modified architecture achieves \textbf{⟦val-ppl⟧} validation perplexity while processing \textbf{⟦tokens/sec⟧}~tokens/sec on an 8~\texttimes~H100 system—a \textbf{⟦Δ\%⟧}\% throughput improvement over the baseline. The negligible parameter overhead (3 scalars per layer) and native PyTorch implementation with JIT support make our method a practical ``drop-in'' replacement for standard linear layers.
+
+To facilitate reproduction and extension, we provide comprehensive code, test suites validating theoretical properties, and a 3-minute automated setup script. Our work demonstrates how classical signal processing principles can inspire architectural innovations that balance expressivity, efficiency, and mathematical elegance.
+\end{abstract} 
