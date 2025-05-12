@@ -1,0 +1,73 @@
+---
+description: Type signatures
+globs: 
+alwaysApply: false
+---
+# Jaxtyping Shape Annotation Guidelines
+
+## Introduction / Problem
+
+Precise tensor shapes improve readability and catch mistakes early, yet traditional type checkers cannot express them. [jaxtyping](mdc:https:/github.com/google/jaxtyping) extends PEP-484 types with static shape information that works with **torch**, **jax**, and **numpy** backends.  This rule describes how **all _new_ Python code** in this repository should declare shapes using jaxtyping.  _Existing files remain untouched until they are otherwise refactored._
+
+## Pattern Description
+
+1. **Import pattern** – sort alongside other third-party libs.
+
+```python
+from jaxtyping import Float, Int, Bool, Array
+```
+
+2. **Alias common shapes** using `typing.TypeAlias` or `NewType` where it improves clarity.
+
+```python
+from typing import TypeAlias
+import torch
+
+BatchFeatures: TypeAlias = Float[torch.Tensor, "batch features"]
+```
+
+3. **Annotate every tensor argument and return value** with a shape string.  Use singular nouns; separate dimensions with spaces.
+
+```python
+def linear(x: Float[torch.Tensor, "batch in_features"], w: Float[torch.Tensor, "in_features out_features"], *, b: Float[torch.Tensor, "out_features"] | None = None) -> Float[torch.Tensor, "batch out_features"]:
+    """Simple linear layer without bias broadcast logic."""
+    return x @ w + (b if b is not None else 0)
+```
+
+4. **Parametric shapes** go in square brackets just once – avoid duplicating dimension symbols.
+
+```python
+from jaxtyping import Float32
+
+def softmax(x: Float32["batch seq"], dim: int = -1) -> Float32["batch seq"]:
+    ...
+```
+
+5. **Private helper tensors** can skip full annotation if the shape is obvious via construction (e.g. created with `torch.zeros_like`).
+
+6. **Do _not_ modify legacy code** solely to add jaxtyping.  Introduce it opportunistically when touching those files for unrelated reasons.
+
+## Real-World Examples
+
+* [NanoGPT embedding](mdc:torchlayers/lct.py) – hypothetical upcoming refactor will follow this rule.
+* [Unit test scaffold](mdc:tests/test_lct_special.py)
+
+## Common Pitfalls / Anti-Patterns
+
+| Pitfall | Fix |
+|---------|-----|
+| Repeating the same shape string in every call site | Define a `TypeAlias`. |
+| Using `torch.Tensor` without backend | Use concrete backend (`torch.Tensor`) inside jaxtyping wrapper. |
+| Forgetting jagged dims (`*`) | Capture them explicitly, e.g. `"batch *time freq"`. |
+| Applying to existing code wholesale | Only new/modified modules should be updated. |
+
+## Implementation Steps (Checklist)
+
+- [ ] Add `jaxtyping` to workspace with `uv add jaxtyping` and sync.
+- [ ] Configure `mypy` plugin (already enabled via `pyproject.toml`).
+- [ ] Follow patterns above for all new modules.
+
+## References
+
+* jaxtyping documentation: <https://github.com/google/jaxtyping>
+* PEP-646: Variadic generics
