@@ -12,13 +12,16 @@ from pathlib import Path
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import torch
-torch.empty(1, device="cuda", requires_grad=True).backward() # prevents a bug on some systems
+if torch.cuda.is_available():
+    torch.empty(1, device="cuda", requires_grad=True).backward()  # prevents a bug on some systems
 from torch import Tensor, nn
 import torch.nn.functional as F
 import torch.distributed as dist
 # use of FlexAttention contributed by @KoszarskyB
 from torch.nn.attention.flex_attention import BlockMask, flex_attention
 #torch._inductor.config.coordinate_descent_tuning = True # we have banned this flag for new records because it causes compilation to take 30min
+
+from torchlayers import LCTLayer
 
 # -----------------------------------------------------------------------------
 # Custom operators: FP8 matmul by @YouJiacheng
@@ -318,18 +321,32 @@ def next_multiple_of_n(v: float | int, *, n: int):
     return next(x for x in range(n, int(v) + 1 + n, n) if x >= v)
 
 class GPT(nn.Module):
-    def __init__(self, vocab_size: int, num_layers: int, num_heads: int, model_dim: int, max_seq_len: int):
+    def __init__(self, vocab_size: int, num_layers: int, num_heads: int, model_dim: int, max_seq_len: int, *, use_lct: bool = False):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, model_dim)
         # token value embeddings by @KoszarskyB - inspired by @Grad62304977's value residual implementation following https://arxiv.org/abs/2410.17897
         # value embedding code simplification inspired by @ragulpr https://github.com/KellerJordan/modded-nanogpt/pull/78
         self.value_embeds = nn.ModuleList([nn.Embedding(vocab_size, model_dim) for _ in range(3)])
         self.blocks = nn.ModuleList([Block(model_dim, num_heads, max_seq_len, i) for i in range(num_layers)])
-        # there are only 50257 unique GPT-2 tokens; we extend to nearest multiple of 128 for efficiency.
-        # suggested to me by @Grad62304977. this originates from Karpathy's experiments.
-        self.lm_head = CastedLinear(model_dim, next_multiple_of_n(vocab_size, n=128),
-                                    use_fp8=True, x_s=(model_dim**0.5)/448, w_s=24/448, grad_s=1/448)
-        self.lm_head.weight.detach().zero_() # @Grad62304977
+        
+        # Optionally use LCT instead of CastedLinear for the language model head
+        out_features = next_multiple_of_n(vocab_size, n=128)
+        if use_lct:
+            # Initialize LCT with parameters optimized for language modeling
+            # The parameters are chosen to balance between Fourier-like behavior (b≈1)
+            # and learnable scaling/phase (a,c small but non-zero)
+            self.lm_head = LCTLayer(a=0.1, b=1.0, c=0.1, normalized=True)
+            # Add a linear projection to match dimensions since LCT preserves input size
+            self.lm_proj = CastedLinear(model_dim, out_features, use_fp8=True, 
+                                      x_s=(model_dim**0.5)/448, w_s=24/448, grad_s=1/448)
+            self.lm_proj.weight.detach().zero_()
+        else:
+            # Original CastedLinear head
+            self.lm_head = CastedLinear(model_dim, out_features, use_fp8=True,
+                                      x_s=(model_dim**0.5)/448, w_s=24/448, grad_s=1/448)
+            self.lm_head.weight.detach().zero_()
+            self.lm_proj = None
+        
         # Add learnable skip connection weights for decoder layers
         assert num_layers % 2 == 0
         self.skip_weights = nn.Parameter(torch.ones(num_layers//2))
@@ -399,7 +416,22 @@ class GPT(nn.Module):
                 skip_connections.append(x)
 
         x = norm(x)
-        logits = self.lm_head(x).float()
+        
+        # Modified language model head with optional LCT
+        if hasattr(self, 'lm_proj') and self.lm_proj is not None:
+            # Project to output dimension first
+            x = self.lm_proj(x)
+            # Convert to complex for LCT
+            x = torch.complex(x, torch.zeros_like(x))
+            # Apply LCT
+            x = self.lm_head(x)
+            # Take real part as logits
+            x = x.real
+        else:
+            # Original behavior
+            x = self.lm_head(x)
+        
+        logits = x.float()
         # @Grad62304977 added tanh softcapping following Gemma 2 paper, @KoszarskyB reduced it from 30 to 15, @YouJiacheng shifted it by +15 (2*sigmoid(2*x)=tanh(x)+1)
         logits = 30 * torch.sigmoid(logits / (7.5 * x.size(-1)**0.5))
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target_seq, reduction='sum' if self.training else 'mean')
@@ -498,7 +530,7 @@ print0("="*100)
 ########################################
 
 model: nn.Module = GPT(vocab_size=args.vocab_size, num_layers=12, num_heads=6, model_dim=768,
-                       max_seq_len=max(args.train_seq_len, args.val_seq_len)).cuda()
+                       max_seq_len=max(args.train_seq_len, args.val_seq_len), use_lct=True).cuda()
 for m in model.modules():
     if isinstance(m, nn.Embedding):
         m.bfloat16()
