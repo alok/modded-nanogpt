@@ -18,6 +18,8 @@ from typing import Optional
 import torch
 from torch import nn
 
+from torchlayers.functional.lct import linear_canonical_transform, symplectic_d
+
 # Type aliases for readability
 Tensor = torch.Tensor
 
@@ -75,56 +77,36 @@ class LCTLayer(nn.Module):
            later once required by additional tests.
         """
 
-        import math  # local to avoid polluting module namespace
-
         if not torch.is_complex(x):
             raise TypeError("LCTLayer expects a complex-valued input tensor.")
 
-        N = x.size(-1)
-        if N == 0:
-            return x  # trivial
+        a, b, c = self.a, self.b, self.c
+        d = symplectic_d(a, b, c)
 
-        # Ensure *scalar* parameters are plain Python floats for math ops.
-        a: Tensor = self.a.squeeze()
-        b: Tensor = self.b.squeeze()
-        c: Tensor = self.c.squeeze()
-
-        # Handle pure Fourier case quickly: (a=0, c=0, b≠0)
-        zero_a = torch.tensor(0.0, dtype=a.dtype, device=a.device)
-        zero_b = torch.tensor(0.0, dtype=b.dtype, device=b.device)
-        zero_c = torch.tensor(0.0, dtype=c.dtype, device=c.device)
-
-        if torch.isclose(a, zero_a) and torch.isclose(c, zero_c):
-            norm_mode = "ortho" if self.normalized else "backward"
-            return torch.fft.fft(x, dim=-1, norm=norm_mode)
-
-        if torch.isclose(b, zero_b):
-            raise NotImplementedError("LCT forward kernel for b = 0 not yet implemented.")
-
-        # Prepare index range along the transform axis: 0, 1, …, N-1 (real dtype)
-        idx = torch.arange(N, device=x.device, dtype=x.real.dtype)
-
-        # First chirp ϕ₁(n) = exp(i·π·a·n² / (N·b))
-        phi1 = torch.exp(1j * math.pi * a * (idx ** 2) / (N * b))
-
-        # Symplectic condition ⇒ d = (1 + b·c) / a
-        d = (1 + b * c) / a
-
-        # Second chirp ϕ₂(k) = exp(i·π·d·k² / (N·b))
-        phi2 = torch.exp(1j * math.pi * d * (idx ** 2) / (N * b))
-
-        # Broadcast chirps over all batch dims, apply FFT along last axis.
-        norm_mode = "ortho" if self.normalized else "backward"
-        X = torch.fft.fft(x * phi1.to(x.dtype), dim=-1, norm=norm_mode)
-        out = X * phi2.to(x.dtype)
-        return out
+        return linear_canonical_transform(
+            x,
+            a=a,
+            b=b,
+            c=c,
+            d=d,
+            dim=-1,
+            normalized=self.normalized,
+        )
 
     def inverse(self, X: Tensor) -> Tensor:
         """(Approximate) inverse transform. Uses the fact that the inverse of the LCT is the LCT with the inverse parameters."""
-        # Compute inverse matrix [d, -b; -c, a]
-        X_inv = X.inverse()
+        a, b, c = self.a, self.b, self.c
+        d = symplectic_d(a, b, c)
 
-        return self.forward(X_inv)
+        return linear_canonical_transform(
+            X,
+            a=d,
+            b=-b,
+            c=-c,
+            d=a,
+            dim=-1,
+            normalized=self.normalized,
+        )
 
     # ------------------------------------------------------------------
     # Helper utilities (to be completed later)
