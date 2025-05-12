@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pyright: reportMissingImports=false, reportAttributeAccessIssue=false
+
 """Modal entrypoint to run comprehensive benchmarks and tests on H100s."""
 
 import json
@@ -7,13 +9,25 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Mapping, TypeVar, Union, cast
+from typing import Any, Dict, Mapping, TypeVar, Union, cast, TYPE_CHECKING, Awaitable, TypeAlias
 
-import modal
+try:
+    import modal  # type: ignore  # noqa: F401
+except ModuleNotFoundError:  # pragma: no cover
+    modal = cast(Any, None)  # type: ignore
 
 T = TypeVar("T", bound=Union[float, str])
 
 app = modal.App("nanogpt-lct")
+
+# Optional imports for static type checkers – these modules are only available
+# inside the Modal container, not in the local macOS dev env.
+if TYPE_CHECKING:  # pragma: no cover
+    import modal as _modal  # noqa: F401
+    import torch as _torch  # noqa: F401
+
+# Serialisable dictionary returned from each benchmark execution.
+ResultDict: TypeAlias = Dict[str, Union[float, str]]
 
 def download_dependencies():
     import subprocess, os
@@ -135,7 +149,7 @@ def run_benchmark(use_lct: bool = False) -> Dict[str, Union[float, str]]:
         os.chdir("/root/app")
         download_dependencies()
         
-        import torch  # defer import until after potential install
+        import torch  # type: ignore  # defer import until after potential install
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"[modal] Running on device: {device}", flush=True)
         
@@ -148,7 +162,7 @@ def run_benchmark(use_lct: bool = False) -> Dict[str, Union[float, str]]:
             "tokens_per_sec": 1000.0,  # Placeholder
             "total_duration": duration,
             "device": device,
-            "cuda_version": torch.version.cuda if hasattr(torch.version, "cuda") else "unknown",
+            "cuda_version": getattr(torch.version, "cuda", "unknown"),  # type: ignore[attr-defined]
             "torch_version": torch.__version__,
         }
         return results
@@ -167,10 +181,10 @@ async def main():
         # their results (which may reference `torch` objects) succeeds.
         download_dependencies()
 
-        import torch  # noqa: F401 – required for Modal deserialisation
+        import torch  # type: ignore  # noqa: F401 – required for Modal deserialisation
  
-        f1 = run_benchmark.remote(use_lct=True)
-        f2 = run_benchmark.remote(use_lct=False)
+        f1: Awaitable[ResultDict] = run_benchmark.remote(use_lct=True)  # type: ignore[assignment]
+        f2: Awaitable[ResultDict] = run_benchmark.remote(use_lct=False)  # type: ignore[assignment]
         results = {
             "lct": await f1,
             "baseline": await f2
