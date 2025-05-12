@@ -94,6 +94,7 @@ image = (
     .add_local_dir(
         ".",
         "/root/app",
+        copy=True,
         ignore=[
             ".git",
             ".git/*",
@@ -150,7 +151,7 @@ image = (
         # Editable install of the project itself so imports like `import modded_nanogpt` work.
         "/root/venv/bin/pip install -e /root/app",
     )
-    .env({"VIRTUAL_ENV": "/root/venv", "PATH": "/root/venv/bin:$PATH"})
+    .env({"VIRTUAL_ENV": "/root/venv"})
 )
 
 @app.function(
