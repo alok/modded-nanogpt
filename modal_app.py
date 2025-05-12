@@ -170,19 +170,27 @@ def run_benchmark(use_lct: bool = False) -> Dict[str, Union[float, str]]:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"[modal] Running on device: {device}", flush=True)
         
-        start_time = time.time()
-        # TODO: Run actual benchmark here
-        time.sleep(2)  # Placeholder
-        duration = time.time() - start_time
-        
-        results: Dict[str, Union[float, str]] = {
-            "tokens_per_sec": 1000.0,  # Placeholder
-            "total_duration": duration,
-            "device": device,
-            "cuda_version": getattr(torch.version, "cuda", "unknown"),  # type: ignore[attr-defined]
-            "torch_version": torch.__version__,
-        }
-        return results
+        # --------------------------------------------------------------
+        # Execute micro training benchmark
+        # --------------------------------------------------------------
+
+        from bench.train_micro import run as run_micro  # local import – avoids cost when not needed
+
+        t0 = time.perf_counter()
+        metrics: Dict[str, Union[float, str]] = run_micro(use_lct=use_lct)  # type: ignore[arg-type]
+        total_duration = time.perf_counter() - t0
+
+        # Augment with environment info
+        metrics.update(
+            {
+                "total_duration": total_duration,
+                "device": device,
+                "cuda_version": getattr(torch.version, "cuda", "unknown"),  # type: ignore[attr-defined]
+                "torch_version": torch.__version__,
+            }
+        )
+
+        return metrics
     except Exception as e:
         print(f"[modal] Benchmark failed: {str(e)}", file=sys.stderr, flush=True)
         raise
