@@ -17,3 +17,11 @@
 - Expanded implementation details and verification checklist in `AGENT.md`.
 - Fast-path FFT shortcut reinstated in `LCTLayer` to satisfy Fourier oracle without division-by-zero.
 - `_chirp_phase` patched for complex dtype safety (no NaNs).
+
+### Added (continued)
+
+* **Property tests:** new `tests/test_lct_properties.py` covering
+  – symplectic determinant (`symplectic_d`),
+  – unitarity of the discrete LCT, and
+  – composition/group law via matrix multiplication.
+  These quick checks give broad algebraic coverage at negligible CI cost.
