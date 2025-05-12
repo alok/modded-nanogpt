@@ -8,6 +8,10 @@
 - Updated `AGENT.md` with new tasks and milestones.
 - Discrete Linear Canonical Transform kernel `torchlayers/functional/lct.py` implementing chirp–FFT–chirp algorithm.
 - Smoke-test suite `tests/test_lct.py` now validates Fourier reduction and inverse property.  Kernel passes.
+- Quadrature-based Laplace transform oracle and Fresnel/FrFT helpers.
+- Quadrature-derived unitary DFT reference and equivalence tests ensuring
+  `LCTLayer(a=0,b=1,c=0)` matches both quadrature and `torch.fft.fft` on
+  random complex signals.
 
 ### Changed
 
