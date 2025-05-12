@@ -1,0 +1,48 @@
+---
+description: 
+globs: **.py,*.py
+alwaysApply: false
+---
+# torch.rsqrt with Complex Dtypes
+
+## Introduction / Problem
+
+Earlier comments in the codebase (e.g. in
+[`torchlayers/functional/lct.py`](mdc:../../torchlayers/functional/lct.py))
+state that `torch.rsqrt` does *not* support complex tensors.  This is
+out-of-date: **PyTorch ≥1.10** implements `torch.rsqrt` for complex64/128 as
+long as the *input tensor is already complex* (it can be a singleton scalar).
+This rule corrects that misconception so future code need not carry custom
+work-arounds.
+
+## Pattern Description
+
+* When a reciprocal square-root is required for a complex scalar or tensor, use
+  `torch.rsqrt` directly **if** the argument is complex.
+* If you have a real scalar `b` and need `1 / sqrt(1j * b)` you can cast or
+  promote to complex first:
+
+```python
+import torch
+
+a = torch.tensor(3.0)          # real
+z = 1j * a.to(torch.complex64) # complex promotion
+const = torch.rsqrt(z)         # works; dtype = complex64
+```
+
+## Real-World Examples
+
+* [`lct.py`](mdc:../../torchlayers/functional/lct.py) currently uses a manual
+  reciprocal square-root.  This can be simplified by relying on
+  `torch.rsqrt` once the input is complex.
+
+## Common Pitfalls
+
+| Pitfall                                   | Fix                                   |
+|-------------------------------------------|---------------------------------------|
+| Passing a *real* tensor to `torch.rsqrt`  | Convert to complex with `.to(torch.complex64)` or cast using `+ 0j`. |
+| Assuming `torch.rsqrt` is unavailable for complex dtypes | Remove custom work-arounds and call `torch.rsqrt` directly. |
+
+## See Also
+
+* PyTorch docs: <https://pytorch.org/docs/stable/generated/torch.rsqrt.html>

@@ -54,7 +54,6 @@ def test_fft_reduction(random_signal: torch.Tensor):
     assert torch.allclose(out, expected, atol=1e-6)
 
 
-@pytest.mark.xfail(reason="Inverse LCT not yet exact – constant/centering bug in kernel")
 def test_inverse_identity(random_signal: torch.Tensor):
     """Applying forward followed by inverse should reconstruct the input."""
 
@@ -69,7 +68,6 @@ def test_inverse_identity(random_signal: torch.Tensor):
 # -----------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="b=0 branch inverse not yet exact")
 def test_b_zero_scaling_branch():  # noqa: D401
     """LCT with *b = 0* followed by its inverse should be identity.
 

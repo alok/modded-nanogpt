@@ -63,7 +63,7 @@ def _random_symplectic(rng: random.Random) -> Tuple[float, float, float, float]:
 
 
 @pytest.mark.parametrize("_", range(20))
-def test_symplectic_determinant(_):
+def test_symplectic_determinant(_: int) -> None:
     """`symplectic_d` should satisfy ad − bc = 1 within tolerance."""
 
     rng = random.Random(_)
@@ -74,7 +74,7 @@ def test_symplectic_determinant(_):
 
 
 @pytest.mark.parametrize("_", range(10))
-def test_lct_unitarity(_):
+def test_lct_unitarity(_: int) -> None:
     """The LCT should be L²-norm preserving for real parameters with b ≠ 0."""
 
     rng = random.Random(42 + _)
@@ -97,7 +97,7 @@ def test_lct_unitarity(_):
 
 
 @pytest.mark.parametrize("_", range(5))
-def test_lct_composition(_):
+def test_lct_composition(_: int) -> None:
     """Composition law: L2 ∘ L1 == L where M = M2·M1."""
 
     rng = random.Random(1234 + _)

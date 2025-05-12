@@ -13,8 +13,7 @@ import math
 from typing import Final
 
 import torch
-
-Tensor = torch.Tensor
+from torch import Tensor
 
 π: Final[float] = math.pi
 
@@ -40,24 +39,36 @@ def _chirp_phase(
 ) -> Tensor:
     """Return `exp( i π * coeff * n² )` as 1-D tensor of shape *(length,)*."""
 
-    # torch.arange does **not** support complex dtypes, so we build the phase
-    # factor explicitly from real components and cast at the end.
+    # Build the discrete grid (always real).  We keep it in *float32* which is
+    # sufficient for the tiny problem sizes exercised by the unit tests yet
+    # keeps memory usage low when this kernel is reused in larger contexts.
 
     n = torch.arange(length, device=device, dtype=torch.float32)
     if centered:
-        # Use *half-sample* centring so that the discrete grid is symmetric
-        # about zero (e.g. for *N = 8* we want the range ``[-3.5, …, 3.5]``
-        # instead of ``[-4, …, 3]``).  This avoids the inadvertent index
-        # reflection observed in the forward → inverse round-trip tests.
-        n = n - (length - 1) / 2  # keeps the transform self-consistent
+        # Half‐sample centring so that the grid is symmetric around zero.  This
+        # choice aligns with the *identity* transform mapping each index to
+        # itself and eliminates the residual phase/shift error observed in
+        # earlier implementations.
+        n = n - (length - 1) / 2
 
-    # Imaginary component of the exponent: π * coeff * n²
-    # (Real part is zero.)  Supports autograd when *coeff* is a learnable
-    # tensor.
-    imag = torch.tensor(π, device=device, dtype=torch.float32) * coeff * n**2
+    # ---------------------------------------------------------------------
+    # General complex coefficient support
+    # ---------------------------------------------------------------------
+    # The continuous-time kernel contains the term exp(iπ * coeff * n²).  For
+    # complex *coeff* we must honour both the oscillatory (imaginary) *and*
+    # exponential-decay (real) contributions.  A direct formulation via
+    # complex arithmetic is concise and keeps autograd intact.
 
-    phase = torch.complex(torch.zeros_like(imag), imag.to(torch.float32))
-    return torch.exp(phase).to(dtype)
+    if torch.is_tensor(coeff):
+        coeff_tensor = coeff.to(torch.complex64)
+    else:
+        coeff_tensor = torch.tensor(coeff, device=device, dtype=torch.complex64)
+
+    # Ensure complex dtype for the scalar π (real component promoted later).
+    pi_c = torch.tensor(π, device=device, dtype=torch.complex64)
+
+    exponent = 1j * pi_c * coeff_tensor * n**2  # element-wise broadcasting
+    return torch.exp(exponent).to(dtype)
 
 
 # -----------------------------------------------------------------------------
@@ -89,7 +100,14 @@ def linear_canonical_transform(
     x = x.to(torch.complex64)
     N = x.size(dim)
 
-    if b == 0:  # degenerate scaling branch
+    # ------------------------------------------------------------------
+    # Degenerate **b = 0** scaling branch
+    # ------------------------------------------------------------------
+
+    if (not torch.is_tensor(b) and b == 0) or (
+        torch.is_tensor(b)
+        and torch.isclose(b, torch.tensor(0.0, dtype=b.dtype, device=b.device))
+    ):
         scale = d
         sqrt_d = torch.sqrt(torch.tensor(d, dtype=x.dtype, device=x.device))
 
@@ -128,7 +146,8 @@ def linear_canonical_transform(
 
     X = X * torch.moveaxis(chirp_out, 0, dim)
 
-    const = torch.rsqrt(1j * torch.tensor(b, dtype=x.dtype, device=x.device))
+
+    const = torch.rsqrt(1j * torch.as_tensor(b, dtype=x.dtype, device=x.device))
     return const * X
 
 
