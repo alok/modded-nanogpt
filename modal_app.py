@@ -156,7 +156,7 @@ def run_benchmark(use_lct: bool = False) -> Dict[str, Union[float, str]]:
         print(f"[modal] Benchmark failed: {str(e)}", file=sys.stderr, flush=True)
         raise
 
-@app.function()
+@app.function(image=image)
 async def main():
     """Run both LCT and baseline benchmarks in parallel."""
     try:
