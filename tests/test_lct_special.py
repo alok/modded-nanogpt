@@ -1,7 +1,20 @@
+# Needed for local editable import when package not installed site-wide.
 from __future__ import annotations
+from typing import Tuple, Sequence, Any
 
 # flake8: noqa: F401
 # pyright: reportMissingImports=false, reportGeneralTypeIssues=false
+
+import sys
+import pathlib
+
+import pytest
+import torch
+
+# Add project root to PYTHONPATH for test discovery *before* deps
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 r"""Tests for special parameter regimes of the Linear Canonical Transform.
 
@@ -12,10 +25,6 @@ oracle.  Additional cases (Laplace, fractional Fourier, Fresnel, degenerate
 Gaussian) will be filled in once the LCT kernel is implemented.
 """
 
-from typing import Tuple
-
-import pytest
-import torch
 
 from torchlayers.lct import LCTLayer
 
@@ -23,8 +32,16 @@ from torchlayers.lct import LCTLayer
 # Parametrisation of special cases (name, (a, b, c))
 # -----------------------------------------------------------------------------
 
-SPECIAL_CASES: Tuple[Tuple[str, Tuple[float, float, float]], ...] = (
+# NOTE: Laplace case requires complex parameters (0, i, i) and is not yet
+# implemented in the forward kernel, so we mark it as xfail for now.
+
+SPECIAL_CASES: Sequence[Any] = (
     ("fourier", (0.0, 1.0, 0.0)),
+    pytest.param(
+        "laplace",
+        (0j, 1j, 1j),
+        marks=pytest.mark.xfail(reason="Laplace kernel pending implementation"),
+    ),
 )
 
 
@@ -44,13 +61,20 @@ _REFERENCE_DISPATCH = {"fourier": _fourier_reference}
 
 
 # -----------------------------------------------------------------------------
+# Placeholder for Laplace oracle (to be filled once kernel exists)
+# -----------------------------------------------------------------------------
+# def _laplace_reference(n: int) -> torch.Tensor:
+#     """Return Laplace transform matrix (unitary convention)."""
+#     ...
+
+
+# -----------------------------------------------------------------------------
 # Actual tests
 # -----------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("name, params", SPECIAL_CASES)
-@pytest.mark.xfail(reason="LCT forward kernel not yet implemented")
-def test_special_case_matrix(name: str, params: Tuple[float, float, float]):
+def test_special_case_matrix(name: str, params):
     """LCT layer should reproduce the analytic matrix for each special case."""
 
     n = 4  # Small sanity-sized transform

@@ -7,11 +7,18 @@ is ready it can be validated quickly.
 
 from __future__ import annotations
 
+import sys
+import pathlib
+
+# Ensure project root is importable *before* third-party imports
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import pytest
 import torch
 
 from torchlayers.lct import LCTLayer
-
 
 # -----------------------------------------------------------------------------
 # Fixtures & helpers
