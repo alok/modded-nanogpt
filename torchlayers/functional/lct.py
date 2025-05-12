@@ -126,6 +126,22 @@ def linear_canonical_transform(
 
 
 def symplectic_d(a: Tensor | float, b: Tensor | float, c: Tensor | float) -> Tensor | float:  # noqa: D401
-    """Return *d* so that [[a, b], [c, d]] ∈ SL(2,ℂ)."""
+    """Return *d* so that the 2×2 matrix ``[[a, b], [c, d]]`` has unit determinant.
 
-    return (1 + b * c) / a
+    The symplectic condition is ``ad − bc = 1``.  For the *generic* case
+    ``a ≠ 0`` we may solve explicitly for ``d = (1 + b c) / a``.  However, when
+    ``a`` vanishes (e.g. Fourier–Fresnel special cases) that formula becomes
+    ill-defined.  In that regime the determinant constraint reduces to
+    ``−b c = 1`` and **any** value of ``d`` satisfies the requirement.  We
+    choose the minimal solution ``d = 0`` for numerical stability.
+    """
+
+    # Handle Python scalars first to avoid tensor overhead in the hot path.
+    if not isinstance(a, torch.Tensor):
+        return 0.0 if abs(a) < 1e-12 else (1 + b * c) / a
+
+    is_zero = torch.isclose(a, torch.zeros_like(a), atol=1e-12, rtol=0.0)
+
+    safe_div = (1 + b * c) / a
+    # ``torch.where`` supports complex dtypes; ensure shapes broadcast.
+    return torch.where(is_zero, torch.zeros_like(safe_div), safe_div)

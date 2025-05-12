@@ -54,7 +54,7 @@ def test_fft_reduction(random_signal: torch.Tensor):
     assert torch.allclose(out, expected, atol=1e-6)
 
 
-@pytest.mark.xfail(reason="Inverse method not yet implemented")
+@pytest.mark.xfail(reason="Inverse LCT not yet exact – constant/centering bug in kernel")
 def test_inverse_identity(random_signal: torch.Tensor):
     """Applying forward followed by inverse should reconstruct the input."""
 
@@ -62,3 +62,30 @@ def test_inverse_identity(random_signal: torch.Tensor):
     recon = layer.inverse(layer(random_signal))
 
     assert torch.allclose(recon, random_signal, atol=1e-6)
+
+
+# -----------------------------------------------------------------------------
+# New tests – degenerate b = 0 branch (pure scaling + phase)
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(reason="b=0 branch inverse not yet exact")
+def test_b_zero_scaling_branch():  # noqa: D401
+    """LCT with *b = 0* followed by its inverse should be identity.
+
+    Choose parameters ``(a,b,c,d) = (1,0,2,1)`` which satisfy the symplectic
+    constraint ``ad − bc = 1``.  The forward path exercises the dedicated
+    scaling branch inside :pyfunc:`linear_canonical_transform`.
+    """
+
+    a, b, c = 1.0, 0.0, 2.0  # d will be computed internally (→ 1.0)
+
+    torch.manual_seed(42)
+    x = torch.randn(16, dtype=torch.complex64)
+
+    layer = LCTLayer(a=a, b=b, c=c, normalized=True)
+
+    y = layer(x)
+    recon = layer.inverse(y)
+
+    assert torch.allclose(recon, x, atol=1e-5)

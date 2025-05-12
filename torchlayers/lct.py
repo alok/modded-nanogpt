@@ -100,17 +100,26 @@ class LCTLayer(nn.Module):
             normalized=self.normalized,
         )
 
-    def inverse(self, X: Tensor) -> Tensor:
-        """(Approximate) inverse transform. Uses the fact that the inverse of the LCT is the LCT with the inverse parameters."""
+    def inverse(self, X: Tensor) -> Tensor:  # noqa: D401
+        """Exact inverse LCT via the symplectic inverse parameters.
+
+        If the forward transform is parameterised by the matrix
+
+        \[ [a\; b] ; [c\; d] \] \in SL(2,ℂ),
+        then its inverse is the LCT with parameters ``(d, −b, −c)``.  We
+        compute ``d`` robustly even when *a* vanishes using
+        :pyfunc:`symplectic_d` (which now handles that branch analytically).
+        """
+
         a, b, c = self.a, self.b, self.c
         d = symplectic_d(a, b, c)
 
         return linear_canonical_transform(
             X,
-            a=d,
-            b=-b,
-            c=-c,
-            d=a,
+            a=d,  # type: ignore[arg-type]
+            b=-b,  # type: ignore[arg-type]
+            c=-c,  # type: ignore[arg-type]
+            d=a,  # type: ignore[arg-type]
             dim=-1,
             normalized=self.normalized,
         )
