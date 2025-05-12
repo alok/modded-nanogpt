@@ -93,11 +93,15 @@ def _laplace_reference(n: int, *, quad_points: int = 2_048) -> torch.Tensor:  # 
     dtype = torch.complex64
 
     # Frequency grid ω_k  =  2π k / N  (k = 0 … N−1)
-    k = torch.arange(n, dtype=dtype)
-    omega = (2 * math.pi / n) * k  # shape (N,)
+    k = torch.arange(n, dtype=torch.float32)
+    omega = (2 * math.pi / n) * k  # float tensor
 
     # Time grid  t_n  =  n  (n = 0 … N−1)
-    t = torch.arange(n, dtype=dtype)
+    t = torch.arange(n, dtype=torch.float32)
+
+    # Cast to complex once to avoid dtype mismatch later.
+    omega = omega.to(dtype)
+    t = t.to(dtype)
 
     # Outer product – produces the exponent matrix  ω_k ⊗ t_n.
     phase = torch.outer(omega, t)  # shape (N, N)
@@ -133,10 +137,14 @@ def _fourier_quad_reference(n: int) -> torch.Tensor:  # noqa: D401
 
     dtype = torch.complex64
 
-    k = torch.arange(n, dtype=dtype)
-    omega = (2 * math.pi / n) * k
+    k = torch.arange(n, dtype=torch.float32)
+    omega = (2 * math.pi / n) * k  # float tensor
 
-    t = torch.arange(n, dtype=dtype)
+    t = torch.arange(n, dtype=torch.float32)
+
+    # Cast to complex once to avoid dtype mismatch later.
+    omega = omega.to(dtype)
+    t = t.to(dtype)
 
     phase = torch.outer(omega, t)
     kernel = torch.exp(-1j * phase)
@@ -162,6 +170,28 @@ def test_fourier_quadrature_matches_fft():
     quad_fft = _fourier_quad_reference(n)
 
     assert torch.allclose(torch_fft, quad_fft, atol=1e-5)
+
+
+# -----------------------------------------------------------------------------
+# Functional equality: LCT implementation vs torch.fft on random data
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("n", [4, 8, 16])
+def test_lct_fourier_matches_fft_on_random_signal(n: int):
+    """The LCT layer (Fourier parameters) should reproduce torch.fft."""
+
+    rng = torch.Generator().manual_seed(42 + n)
+
+    # Random complex input with an extra batch dimension
+    x = torch.randn(3, n, dtype=torch.complex64, generator=rng)
+
+    lct = LCTLayer(a=0.0, b=1.0, c=0.0, normalized=True)
+
+    out_lct = lct(x)
+    out_fft = torch.fft.fft(x, dim=-1, norm="ortho")
+
+    assert torch.allclose(out_lct, out_fft, atol=1e-4)
 
 
 # -----------------------------------------------------------------------------
