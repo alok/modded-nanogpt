@@ -1,6 +1,6 @@
 ---
-description: Type signatures
-globs: 
+description: 
+globs: **.py,*.py
 alwaysApply: false
 ---
 # Jaxtyping Shape Annotation Guidelines

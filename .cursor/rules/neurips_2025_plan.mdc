@@ -3,7 +3,6 @@ description: Persistent tasks and guidelines for writing the extended abstract, 
 globs: 
 alwaysApply: true
 ---
-
 ## Deliverables & Checklists
 
 ### 1️⃣ Extended Abstract (≥2 pages, ≤4 pages)
@@ -61,5 +60,35 @@ Whenever the same shell command is executed ≥3 times, propose a **Justfile** t
 
 ---
 
-_End of rule_
+## Immediate Next Actions (sync `@AGENT.md`)
+
+| Priority | Task | When |
+| -------- | ---- | ---- |
+| 🔥 | Build repo skeleton & smoke-test MVP `LCTLayer` | Today |
+| 🔥 | Draft abstract outline (`paper/outline.md`) | Today |
+| 🔥 | Wire into NanoGPT `--use-lct` flag | Today |
+| 🆕 | Oracle tests (Fourier, Laplace) | Today |
+| 🆕 | Quick benchmark script `just bench:lct` | Today |
+| ⚠️ | Update results table & abstract numbers | Today |
+| ℹ️ | Tag preview `v0.0.1` | Today |
+
+---
+
+## Milestones (high-level check-points)
+
+1. **LCT Minimum Viable Layer** – code complete & passes unit tests.
+2. **Integration** – NanoGPT runs with `--use-lct` replacing `nn.Linear`.
+3. **Benchmark** – tokens/s baseline vs LCT plotted; results saved in `img/`.
+4. **Special-Case Compliance** – Laplace, Fresnel, FrFT, unitarity tests green.
+5. **Paper** – Extended abstract PDF passes NeurIPS style checker.
+6. **Submission Package** – Tagged release `v0.1.0` with Zenodo DOI.
+
+---
+
+## Reference Implementation Guide
+
+For full technical details (repository skeleton, algorithmic breakdown, caching strategy, CI matrix, ablation list, etc.) consult [AGENT.md](mdc:AGENT.md).
+
+---
+
 
