@@ -1,25 +1,25 @@
 # AGENT PLAN – NeurIPS 2025 LCT-NanoGPT Project
 
 _Last updated: 2025-05-11 23:42 EDT_
+_Last updated: 2025-05-11 22:59 EDT_
 
 ## 0. TL;DR
+
 Write a polished NeurIPS 2025 extended abstract showcasing a Linear Canonical Transform (LCT) layer inside NanoGPT; ship reproducible code, benchmarks, and documentation.
 
 ---
 
 ## 1. Immediate Next Actions
 
-| Priority | Task                                                                   | Linked § | ETA   |
-| -------- | ---------------------------------------------------------------------- | -------- | ----- |
-| 🔥        | Build repository skeleton (files & stubs in §3.1)                      | 3.1      | 05-12 |
-| 🔥        | Draft abstract outline (`paper/outline.md`)                            | 4        | 05-12 |
-| 🔥        | Implement differentiable `LCTLayer.forward` & `inverse` (+ smoke test) | 3.2      | 05-13 |
-| 🔥        | Integrate `LCTLayer` into NanoGPT via `--use-lct` flag                 | 3.7      | 05-13 |
-| 🆕        | Add oracle tests for Laplace / Fresnel / FrFT cases                    | 3.3      | 05-14 |
-| 🆕        | CI workflow `ci/python-tests.yml` (ruff + mypy + pytest)               | 3.9      | 05-14 |
-| 🆕        | Benchmark script `just bench:lct` + wandb logging                      | 3.8      | 05-15 |
-| ⚠️        | Update results table in `paper/main.tex` after first benchmark run     | 4        | 05-16 |
-| ℹ️        | Preview release `v0.0.1` to TestPyPI                                   | 3.10     | 05-17 |
+| Priority | Task                                            | Linked § | When  |
+| -------- | ----------------------------------------------- | -------- | ----- |
+| 🔥        | Build repo skeleton & smoke‐test MVP `LCTLayer` | 3.1/3.2  | Today |
+| 🔥        | Draft abstract outline (`paper/outline.md`)     | 4        | Today |
+| 🔥        | Wire into NanoGPT `--use-lct` (concat+proj)     | 3.7      | Today |
+| 🆕        | Oracle tests (Fourier, Laplace)                 | 3.3      | Today |
+| 🆕        | Quick benchmark script `just bench:lct`         | 3.8      | Today |
+| ⚠️        | Update results table & abstract numbers         | 4        | Today |
+| ℹ️        | Tag preview `v0.0.1`                            | 3.10     | Today |
 
 ---
 
@@ -43,9 +43,11 @@ Write a polished NeurIPS 2025 extended abstract showcasing a Linear Canonical Tr
 ## 3. Detailed Implementation Plan (synthesised from `paper/main.tex` & `FLCTISIEONE.tex`)
 
 ### 3.0 Scope
-Deliver a production-grade, differentiable Linear Canonical Transform (LCT) layer for PyTorch and integrate it into NanoGPT.  We adopt the fast chirp–FFT–chirp decomposition presented in §2 of *FLCTISIEONE.tex*, achieving **O(N log N)** complexity while leveraging cuFFT on GPU.
+
+Deliver a production-grade, differentiable Linear Canonical Transform (LCT) layer for PyTorch and integrate it into NanoGPT.  We adopt the fast chirp–FFT–chirp decomposition presented in §2 of _FLCTISIEONE.tex_, achieving **O(N log N)** complexity while leveraging cuFFT on GPU.
 
 ### 3.1 Repository Skeleton
+
 ```
 torchlayers/
   __init__.py
@@ -64,8 +66,11 @@ docs/
 ```
 
 ### 3.2 Core Algorithm (LCTLayer)
+
+**Implementation order guideline:** Begin by shipping a **fully-general, CPU-only** version of `LCTLayer` with _no_ special-case branches or performance tweaks.  Ensure the layer works standalone and passes the validation suite **before** attempting GPU acceleration, NanoGPT integration, or any optimisation work noted later in this plan.
+
 1. **Parameterisation**  
-   • Three learnable scalars `a, b, c` (`nn.Parameter`).  
+   • Three learnable **complex64** scalars `a, b, c` (`nn.Parameter`, stored as real–imag pairs ⇒ 6 real DOF).  
    • Compute `d` on-the-fly such that `ad − bc = 1`.  
    • Regularise near-singular branch (`|a|≤ε`) with Taylor fallback.
 2. **Forward pass** (`b ≠ 0`)  
@@ -78,49 +83,82 @@ docs/
    • Cache chirp tensors with `register_buffer`; rebuild when parameters update.
 5. **Mixed precision**  
    All constants cast to `x.dtype`; supports bf16 & (capability-gated) fp8.
+6. **(Experimental) Lie-algebra parameterisation – SL(2,ℂ)**  
+   • Model the generator `M' = p₁ H + p₂ X + p₃ Y ∈ 𝔰𝔩(2,ℂ)` with traceless basis `H = [[1,0],[0,-1]]`, `X = [[0,1],[0,0]]`, `Y = [[0,0],[1,0]]`.  
+   • Learn complex coefficients `pᵢ ∈ ℂ` (6-real DOF) and obtain the canonical matrix via `M = torch.matrix_exp(M') ∈ SL(2,ℂ)` which always satisfies `det M = 1`.  
+   • Parse `(a,b,c,d)` from `M` and route through the same chirp–FFT–chirp kernel.  
+   • Unlocks non-unitary special cases (e.g.
+     Laplace) and removes division–by–zero pitfalls when solving for `d`.  
+   • Gate behind `lie_param=True`; **deferred** until MVP is merged and stabilised.
+7. **Degeneracy safeguard**  
+   • If `|b| < ε` (default `ε = 1e-4`) automatically switch to the `b ≈ 0` path with fast approximate resampling (identity shortcut when `d ≈ 1`).  
+   • Emit a `logger.debug` or `wandb` counter (`lct/degen_hits`) each time the branch fires to monitor training stability.
 
 ### 3.3 Validation Suite
+
 • FFT reduction: `(a,b,c) = (0,1,0)` → L2 < 1e-6 vs `torch.fft.fft`  
 • Inverse consistency: `x ≈ layer.inverse(layer(x))` (max |err| < 1e-6)  
 • Laplace, Fresnel, fractional Fourier (α ∈ {π/4, π/2, 3π/4})  
 • Unitarity: `LCT · LCTᴴ ≈ I` for random N ≤ 256.
 
 ### 3.4 API & Docs
+
 ```python
 layer = LCTLayer(size=1024, init=(0., 1., 0.), learnable=True)
 y = layer(x)           # x: (batch, size)
 z = layer.inverse(y)   # z ≈ x
 ```
+
 Mathematical exposition lives in `docs/lct_math.md`; docstrings follow NumPy style and are rendered by Sphinx.
 
 ### 3.5 Performance Engineering
+
 • Prefer `torch.fft.rfft` for real inputs.  
 • Cache cuFFT plans across calls.  
 • Provide `layer.cuda_graph()` for capture.  
 • FP8 path gated by `torch.cuda.get_device_capability() ≥ (9,0)`.
 
 ### 3.6 Rule Compliance (`.cursor/rules/neurips_2025_plan.mdc`)
+
 * `uv` for deps, `ruff/black/mypy` enforced in CI.  
 * One git commit per atomic change; update `CHANGELOG.md` after public API edits.
 
 ### 3.7 NanoGPT Integration
+
 • Add CLI flag `--use-lct` to `train_gpt*.py`.  
-• Replace projection layer with `LCTLayer` when flag is set.  
-• Maintain param-count parity (`in_features == out_features`).  
+• Insert `LCTLayer` **along the sequence length dimension L**, immediately _before_ self-attention (`X → LCT → QKV`).  
+• Represent complex output as `[Re ; Im]` concatenation ⇒ doubles the channel dimension fed to attention; an initial linear bottleneck can project back when required.  
+• **Immediately** apply `nn.Linear(2d → d)` to restore the original width and contain FLOPs; weights initialised to block‐wise identity.  
+• Alternate strategies (`magnitude`, `real-only`) kept for ablation (§3.11).  
+• Account for RoPE interactions – monitor if LCT learns to normalise or warp positional phases.  
+• Keep param-count parity (`in_features == out_features`) when concatenation is folded into the subsequent linear.  
 • Forward-only sanity test `tests/test_nano_integration.py`.
 
 ### 3.8 Benchmark Harness
+
 • `just bench:lct` logs tokens/s & VRAM to `records/YYYYMMDD_LCTBench/`.  
 • Optional wandb upload when key present.
 
 ### 3.9 Continuous Integration
-GitHub Action `{ubuntu-latest, macos-13}` × `{3.12, nightly}` running:   
+
+GitHub Action `{ubuntu-latest, macos-13}` × `{3.12, nightly}` running:
 `uv pip install -e .[dev] && ruff . && black --check . && mypy --strict . && pytest -q`.
 
 ### 3.10 Packaging & Release
+
 • Export `LCTLayer` in `torchlayers/__init__.py`.  
 • Version `0.0.1` → TestPyPI; bump to `0.1.0` for camera-ready.  
 • Create Zenodo DOI tag `v0.1.0`.
+
+### 3.11 Ablation & Analysis
+
+* **Layer impact** – baseline vs `--use-lct`.
+* **Placement** – pre-attention vs post-attention vs dedicated block. _(P0)_
+* **Complex-to-real mapping** – `[Re ; Im]` concat vs magnitude vs real-only. _(P0)_
+* **Fixed vs learnable** – freeze parameters to FFT / FrFT / Fresnel vs fully learnable. _(P1)_
+* **RoPE interaction** – compare runs with/without rotary embeddings. _(P1)_
+* **Degeneracy threshold** – sweep `ε` for the `b≈0` switch. _(P2)_
+Benchmarks report: tokens/s, wall-clock to target loss, FLOPs step overhead, memory, and parameter histograms `(a,b,c,d)`.
 
 ---
 
@@ -145,13 +183,14 @@ GitHub Action `{ubuntu-latest, macos-13}` × `{3.12, nightly}` running:
 
 ## 6. Glossary
 
-* **LCT** – Linear Canonical Transform, param \(a,b,c\) governing affine symplectic mapping.
+* **LCT** – Linear Canonical Transform, param \(a,b,c\) governing affine symplectic mapping. _(≠ "linear chirp transform")_
 * **FFT** – Fast Fourier Transform; recovered when \(a=0, b=1, c=0\).
 
 ---
 
 ## 7. Next Update Trigger
-When any task completes, open this file, tick box ✅, append to *Decisions* if applicable, and bump timestamp at top.
+
+When any task completes, open this file, tick box ✅, append to _Decisions_ if applicable, and bump timestamp at top.
 
 ---
 
@@ -302,12 +341,12 @@ The high-level `LinearCanonicalTransform` module simply wraps the above, pre-com
 
 ### 8.5  Verification Checklist (pytest)
 
-1. *Fourier oracle* – `(0,1,-1,0)` matches `torch.fft.fft` (tol ≤ 1e-6).
-2. *Identity* – `(1,0,0,1)` returns input exactly.
-3. *Inverse* consistency – `LCT(M⁻¹)(LCT(M)(x)) ≈ x`.
-4. *Unitarity* – `‖LCT(x)‖₂ == ‖x‖₂` within 1e-6.
-5. *Group property* – FrFT(θ₁) ∘ FrFT(θ₂) ≈ FrFT(θ₁+θ₂).
-6. *Batch broadcasting* – compare loop vs batched run.
+1. _Fourier oracle_ – `(0,1,-1,0)` matches `torch.fft.fft` (tol ≤ 1e-6).
+2. _Identity_ – `(1,0,0,1)` returns input exactly.
+3. _Inverse_ consistency – `LCT(M⁻¹)(LCT(M)(x)) ≈ x`.
+4. _Unitarity_ – `‖LCT(x)‖₂ == ‖x‖₂` within 1e-6.
+5. _Group property_ – FrFT(θ₁) ∘ FrFT(θ₂) ≈ FrFT(θ₁+θ₂).
+6. _Batch broadcasting_ – compare loop vs batched run.
 
 All tests live in `tests/test_lct.py` & `tests/test_lct_special.py`.
 
@@ -330,3 +369,10 @@ All tests live in `tests/test_lct.py` & `tests/test_lct_special.py`.
 ---
 
 _This guide supersedes earlier terse notes in §3 where overlap exists._
+
+### 1.1  Execution Sprint Checklist (one-day)
+1. `pytest -q` → all FFT/Laplace tests green.
+2. Wire `--use-lct` flag & `[Re;Im]` concat+bottleneck in `train_gpt*.py`.
+3. Run `just bench:lct` → record tokens/s vs baseline.
+4. Draft `paper/outline.md` with 5-part structure (motivation, method, expt, results, impact).
+5. Tick items in §1 table, commit & tag `v0.0.1-preview`.
