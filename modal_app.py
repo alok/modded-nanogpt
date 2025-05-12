@@ -38,6 +38,9 @@ def download_dependencies():
 
 image = (
     modal.Image.from_registry("pytorch/pytorch:2.2.1-cuda12.1-cudnn8-runtime")
+    # Basic build toolchain and git for editable installs
+    .apt_install("git", "curl", "build-essential")
+    # Install uv (Rust binary) and ensure it's first on PATH
     .run_commands("curl -Ls https://astral.sh/uv/install | bash")
     .pip_install("uv")
     .add_local_dir(
