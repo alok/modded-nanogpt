@@ -199,11 +199,11 @@ async def main():
 
         import torch  # type: ignore  # noqa: F401 – required for Modal deserialisation
  
-        f1: Awaitable[ResultDict] = run_benchmark.remote(use_lct=True)  # type: ignore[assignment]
-        f2: Awaitable[ResultDict] = run_benchmark.remote(use_lct=False)  # type: ignore[assignment]
+        lct_results: ResultDict = run_benchmark.remote(use_lct=True)  # type: ignore[assignment]
+        baseline_results: ResultDict = run_benchmark.remote(use_lct=False)  # type: ignore[assignment]
         results = {
-            "lct": await f1,
-            "baseline": await f2
+            "lct": lct_results,
+            "baseline": baseline_results,
         }
         
         # Save results to records directory
