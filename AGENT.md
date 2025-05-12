@@ -169,6 +169,11 @@ Benchmarks report: tokens/s, wall-clock to target loss, FLOPs step overhead, mem
 * FP8 path: benchmark NF4 vs FP8-E4M3.
 * Use `torch.compile` (TorchDynamo) to fuse chirp multiplications.
 * Ensure conjugate 2π convention (`normalized=True`) matches NumPy ortho mode.
+* **Non-norm preserving group law extension** – Implement a variant that prioritizes exact group law composition over unitarity. This would allow:
+  - Exact composition of transforms without amplitude distortion
+  - Simpler kernel implementation without half-sample corrections
+  - Direct matrix multiplication for parameter composition
+  - Trade-off: requires explicit renormalization after each transform
 
 ---
 
@@ -412,3 +417,93 @@ Across the five parameter draws in `test_lct_composition` the max-abs error rang
 2. A missing **(1/|b|½)** **AND** per-sample phase tilt: multiplying `diag(exp(iπ (a n²)/bN))` on *both* sides could compensate.
 
 > **TODO for next agent**:  Derive the exact discrete kernel constant by insisting on the group law algebraically (symbolic `sympy` solve) and adjust tests to compare up to a global phase rotation if that is mathematically legitimate.
+
+### Focused reproduction – 45° FrFT × 2  (added 2025-05-12 14:05 EDT)
+
+A minimal failing case is now cemented in `tests/test_lct_frft_debug.py`:
+
+* compose two **45 ° fractional Fourier transforms**  \(\mathrm{FrFT}_{\pi/4}\) which **must** equal one 90 ° FrFT (the unitary FFT).
+* The test strips one reference entry to cancel a potential *global* complex constant, yet fails with relative errors ≈ 1.
+
+Observed pattern
+* Unitarity still green → magnitude profile correct.
+* Ratio `y_seq / y_fft` varies across indices → **index-dependent phase error**.
+
+Working hypotheses (rank-ordered)
+
+| ID  | Suspicion                                                                               | Quick falsification test                                         |
+| --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| H1  | Half-sample centring applied twice ⇒ net ±½ index shift                                 | rerun test with `centered=False` everywhere                      |
+| H2  | FFT 'ortho' factor handled twice (missing/extra √N)                                     | divide second stage by √N & re-run                               |
+| H3  | Global phase formula `exp(−iπ·sgn(b)/4)` missing additive term when composing           | compare product of two phases vs closed-form for combined matrix |
+| H4  | Sign convention for quadratic coefficients `a/b`, `d/b` w.r.t negative `b` inconsistent | log coefficients per call & combined                             |
+
+Next actionable steps
+1. Parameter-sweep over `<centre flag × amplitude tweak>` grid; table the residuals.
+2. Instrument debug helper to dump `(chirp_in, FFT, chirp_out, amp)` for both stages and the combined path.
+3. Symbolically derive discrete kernel constant via *group-law first principles* (likely easiest in `sympy`).
+4. Patch the offending term, rerun full suite; retire the debug test (keep as regression).
+
+**Exit-criteria:** `pytest -q` fully green and `max_rel_err(FrFT×2 vs FFT) < 1e-6` up to a single global complex constant.
+
+### 2025-05-12T18:10-0400 – Dense‐Kernel Amplitude vs Linear-Phase Sign
+
+**What We Saw**
+* Switching to the *exact* amplitude constant \(C(b)=1/\sqrt{i b N}\) alone fixed the norm ratio for *one* \((a,b,c)\) draw (<1 % error) but unitarity still failed across a sweep and FrFT×2 ≠ FFT.
+* Residual error pattern ⇒ correct magnitudes, **index-dependent phase**.
+
+**Diagnosis**
+1. Quadratic terms already match the analytic kernel.
+2. The half-sample linear-phase term implemented as
+   ```python
+   ((1/N - a) * n + (1/N - d) * k)
+   ```
+   has the **wrong sign** on the \(a\) and \(d\) contributions.
+3. Constant phase looks algebraically consistent; will keep unchanged until re-tested.
+
+**Patch**
+```diff
+- ((1.0 / N - a_c) * n_idx + (1.0 / N - d_c) * k_idx)
++ ((a_c - 1.0 / N) * n_idx + (d_c - 1.0 / N) * k_idx)
+```
+
+Keep amplitude:
+```python
+sqrt_ib = torch.sqrt(1j * b_c)
+amp = 1.0 / (sqrt_ib * math.sqrt(N))
+```
+
+**Next Step** — implement sign fix, rerun full `pytest -q`.  Exit-criteria remain unchanged.
+
+### 2025-05-12T??:?? – Fixed LCT Unitarity Issue
+
+**Problem**  
+The dense-kernel implementation of the Linear Canonical Transform was consistently producing matrices with:
+* Row norms = 1/√|b| (instead of 1.0)
+* Columns non-orthogonal
+
+**Analysis**  
+After testing multiple hypotheses:
+1. The amplitude constant was using the continuum form `1/√(i*b*N)` 
+2. This introduces an extra factor of √|b| in the denominator
+3. For discrete unitarity, we need specifically `e^(-iπsgn(b)/4)/√N`
+
+**Fix Applied**
+```diff
+- sqrt_ib = torch.sqrt(1j * b_c)
+- amp128 = 1.0 / (sqrt_ib * math.sqrt(N))  # complex128
++ # Correct normalization for unitarity
++ phase_factor = torch.exp(-1j * torch.as_tensor(π/4, dtype=torch.complex128) * torch.sign(torch.real(b_c)))
++ amp128 = phase_factor / math.sqrt(N)  # complex128
+```
+
+**Results**
+* Unitarity test now passes with error < 1e-7
+* The fixing of amplitude normalization is sufficient; no changes to the phase terms were needed
+* **BUT** composition tests still fail - sequential LCT applications don't match direct composed transform
+
+**Next Steps**
+Investigate the group law failure. Possible issues:
+1. The global phase factor may need special adjustment when composing transformations
+2. Need to carefully track the normalization constant across sequential transforms
+3. The normalized=True flag may need to be handled specially for composition
