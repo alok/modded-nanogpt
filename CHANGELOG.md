@@ -1,3 +1,10 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [Unreleased]
 
 ### Added
@@ -14,6 +21,9 @@
   random complex signals.
 - Marked future extension for non-norm preserving group law variant in `AGENT.md`.
 - Prepared codebase for larger N scaling with optimized memory handling.
+- [2025-05-12 04:53] Integrated LCT layer as an optional replacement for the language model head in NanoGPT
+- [2025-05-12 04:53] Enhanced benchmark suite with comprehensive metrics (tokens/sec, latency, memory)
+- [2025-05-12 04:53] Added distributed benchmarking support on Modal with H100s
 
 ### Changed
 
@@ -24,6 +34,9 @@
 - Fast-path FFT shortcut reinstated in `LCTLayer` to satisfy Fourier oracle without division-by-zero.
 - `_chirp_phase` patched for complex dtype safety (no NaNs).
 - Optimized memory usage for larger N values by using float32 for intermediate computations.
+- [2025-05-12 04:53] Modified GPT class to support optional LCT-based language model head
+- [2025-05-12 04:53] Improved benchmark script with proper warmup and measurement phases
+- [2025-05-12 04:53] Updated Modal deployment for more thorough testing and result collection
 
 ### Added (continued)
 
@@ -37,3 +50,7 @@
 
 * Non-norm preserving group law variant planned for exact composition without amplitude distortion.
 * Scaling tests for larger N values to validate performance characteristics.
+
+### Fixed
+
+- Configure setuptools package discovery in `pyproject.toml` to include only `torchlayers*`, resolving editable install failure during Modal deployment.
