@@ -40,11 +40,20 @@ def _chirp_phase(
 ) -> Tensor:
     """Return `exp( i π * coeff * n² )` as 1-D tensor of shape *(length,)*."""
 
-    n = torch.arange(length, device=device, dtype=dtype)
+    # torch.arange does **not** support complex dtypes, so we build the phase
+    # factor explicitly from real components and cast at the end.
+
+    n = torch.arange(length, device=device, dtype=torch.float32)
     if centered:
         n = n - length // 2
-    phase = 1j * π * coeff * n**2
-    return torch.exp(phase)
+
+    # Imaginary component of the exponent: π * coeff * n²
+    # (Real part is zero.)  Supports autograd when *coeff* is a learnable
+    # tensor.
+    imag = torch.tensor(π, device=device, dtype=torch.float32) * coeff * n**2
+
+    phase = torch.complex(torch.zeros_like(imag), imag.to(torch.float32))
+    return torch.exp(phase).to(dtype)
 
 
 # -----------------------------------------------------------------------------

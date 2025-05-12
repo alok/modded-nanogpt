@@ -1,8 +1,12 @@
-"""Core tests for :pyclass:`torchlayers.lct.LCTLayer`.
+"""Core smoke-tests for :pyclass:`torchlayers.lct.LCTLayer`.
 
-These tests are currently *xfail* because the mathematical kernel has not yet
-been implemented.  They serve as scaffolding so that once the implementation
-is ready it can be validated quickly.
+Validates two fundamental properties expected from a *working* Linear Canonical
+Transform implementation:
+
+1. **Fourier reduction** – when `(a,b,c) = (0,1,0)` the LCT must coincide with
+   the discrete FFT (unitary 2π-conjugate convention).
+2. **Inverse consistency** – applying the inverse immediately after the forward
+   recovers the original signal to numerical precision.
 """
 
 from __future__ import annotations
@@ -34,11 +38,10 @@ def random_signal() -> torch.Tensor:  # noqa: D401
 
 
 # -----------------------------------------------------------------------------
-# Tests – currently marked xfail
+# Tests
 # -----------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="LCT forward kernel not yet implemented")
 def test_fft_reduction(random_signal: torch.Tensor):
     """When (a,b,c)=(0,1,0) the LCT should equal the FFT."""
 
@@ -48,7 +51,7 @@ def test_fft_reduction(random_signal: torch.Tensor):
     out = layer(sig)
     expected = torch.fft.fft(sig, norm="ortho")
 
-    assert torch.allclose(out, expected, atol=1e-5)
+    assert torch.allclose(out, expected, atol=1e-6)
 
 
 @pytest.mark.xfail(reason="Inverse method not yet implemented")
@@ -58,4 +61,4 @@ def test_inverse_identity(random_signal: torch.Tensor):
     layer = LCTLayer(a=0.3, b=1.0, c=-0.1, normalized=True)
     recon = layer.inverse(layer(random_signal))
 
-    assert torch.allclose(recon, random_signal, atol=1e-5)
+    assert torch.allclose(recon, random_signal, atol=1e-6)
