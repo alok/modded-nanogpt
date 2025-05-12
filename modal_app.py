@@ -17,31 +17,68 @@ app = modal.App("nanogpt-lct")
 
 def download_dependencies():
     import subprocess, os
-    # Ensure CUDA-enabled torch is present; install silently if missing
+    # Ensure that `uv` installs packages into the project-managed environment instead of trying
+    # to create nested virtualenvs inside virtualenvs (Modal already provides isolation).
+
+    env = os.environ.copy()
+    env["UV_NO_CONFIG"] = "1"  # prevent uv from inspecting the project's pyproject & .venv
+
+    # Delete any pre-existing `.venv` shipped from the host (likely macOS), which contains
+    # an incompatible interpreter and confuses uv inside the Linux container.
+    import shutil
+    host_venv = Path(".venv")
+    if host_venv.exists():
+        shutil.rmtree(host_venv)
+
+    # Ensure Python 3.12 (matching the project's requirement) is available inside the container.
+    subprocess.run(["uv", "python", "install", "3.12"], check=True, env=env)
+
+    # Locate the freshly installed Python 3.12 interpreter. `uv python find` may exit with non-zero if
+    # multiple matches exist, so we fall back to globbing the uv python directory.
     try:
-        import torch  # type: ignore
-    except ModuleNotFoundError:
-        subprocess.run(
-            [
-                "uv",
-                "pip",
-                "install",
-                "--quiet",
-                "--index-url",
-                "https://download.pytorch.org/whl/cu121",
-                "torch==2.2.1+cu121",
-            ],
-            check=True,
-        )
-    # Install project in editable mode (dependencies declared in pyproject.toml)
-    subprocess.run(["uv", "pip", "install", "-e", "."], check=True)
+        python312 = subprocess.check_output(["uv", "python", "find", "3.12"], env=env).decode().strip()
+    except subprocess.CalledProcessError:
+        uv_dir = Path(subprocess.check_output(["uv", "python", "dir"], env=env).decode().strip())
+        candidates = list(uv_dir.glob("cpython-3.12*/bin/python3.12"))
+        if not candidates:
+            raise RuntimeError("Python 3.12 not found after installation via uv")
+        python312 = str(candidates[0])
+
+    venv_dir = Path("/root/venv")
+    if not venv_dir.exists():
+        subprocess.run([python312, "-m", "venv", str(venv_dir)], check=True)
+
+    pip_exe = venv_dir / "bin" / "pip"
+
+    # Upgrade pip and install dependencies from pre-generated requirements.txt
+    subprocess.run([str(pip_exe), "install", "--upgrade", "pip"], check=True)
+    subprocess.run([
+        str(pip_exe),
+        "install",
+        "--extra-index-url",
+        "https://download.pytorch.org/whl/nightly/cu126",
+        "--extra-index-url",
+        "https://download.pytorch.org/whl/torch_dev.html",
+        "--pre",
+        "-r",
+        "requirements.txt",
+    ], check=True)
+
+    # Install the current project in editable mode (so that training scripts can `import modded_nanogpt`)
+    subprocess.run([str(pip_exe), "install", "-e", "."], check=True)
+
+    # Make the venv's site-packages visible to the running interpreter so that subsequent imports work.
+    import site, sys
+    site_packages = venv_dir / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+    site.addsitedir(str(site_packages))
 
 image = (
     modal.Image.from_registry("pytorch/pytorch:2.2.1-cuda12.1-cudnn8-runtime")
     # Basic build toolchain and git for editable installs
     .apt_install("git", "curl", "build-essential")
-    # Install uv (Rust binary) and ensure it's first on PATH
-    .run_commands("curl -Ls https://astral.sh/uv/install | bash")
+    # Install the standalone `uv` binary (preferred over PyPI wheel for speed).
+    # Official installer lives at /install.sh (see https://docs.astral.sh/uv).
+    .run_commands("curl -LsSf https://astral.sh/uv/install.sh | sh")
     .pip_install("uv")
     .add_local_dir(
         ".", 
@@ -125,6 +162,13 @@ async def main():
     try:
         print("[modal] Starting benchmarks...", flush=True)
         
+        # Ensure the current container has the same Python environment as the
+        # worker containers running `run_benchmark` so that deserialisation of
+        # their results (which may reference `torch` objects) succeeds.
+        download_dependencies()
+
+        import torch  # noqa: F401 – required for Modal deserialisation
+ 
         f1 = run_benchmark.remote(use_lct=True)
         f2 = run_benchmark.remote(use_lct=False)
         results = {

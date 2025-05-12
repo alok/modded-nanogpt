@@ -54,3 +54,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Configure setuptools package discovery in `pyproject.toml` to include only `torchlayers*`, resolving editable install failure during Modal deployment.
+- Ensure `main()` installs dependencies and imports `torch` so that Modal can deserialize benchmark results.
