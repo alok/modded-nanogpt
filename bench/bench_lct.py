@@ -1,58 +1,70 @@
-"""Micro-benchmark for the (forthcoming) LCTLayer.
+"""Three-minute micro-benchmark comparing NanoGPT vs NanoGPT + LCT.
 
-Usage::
-
-    $ python -m bench.bench_lct --size 1024 --device cuda
-
-At the moment this is a stub that prints a *not yet implemented* warning so
-that the CLI wiring can be tested before the kernel is ready.
+This file purposefully keeps the dependency surface tiny so that it can run
+inside the Modal stub in < 10 min end-to-end (container + exec).  It uses a
+*very* small GPT config to minimise compile time.
 """
 
 from __future__ import annotations
 
-import argparse
+# flake8: noqa: F401
+# pyright: reportMissingImports=false, reportGeneralTypeIssues=false
+
 import time
-from contextlib import nullcontext
+from argparse import ArgumentParser
 
 import torch
 
-# Ensure the import works even before LCT implementation is complete.
-from torchlayers.lct import LCTLayer  # noqa: E402
+try:
+    from train_gpt import GPT, GPTConfig  # type: ignore  # Local NanoGPT fork
+except ImportError as exc:  # pragma: no cover – benchmark-only path
+    raise SystemExit("Could not import GPT modules – ensure NanoGPT code is on PYTHONPATH") from exc
+
+from torchlayers.lct import LCTLayer
+
+__all__ = ["run"]
 
 
-def _parse_args() -> argparse.Namespace:  # noqa: D401
-    p = argparse.ArgumentParser(description="Benchmark the LCT layer")
-    p.add_argument("--size", type=int, default=1024, help="transform size (N)")
-    p.add_argument("--device", type=str, default="cpu", help="cpu or cuda")
-    p.add_argument("--repeat", type=int, default=50, help="# iterations")
-    return p.parse_args()
+def _build_model(use_lct: bool) -> GPT:  # type: ignore[name-defined]
+    """Return a tiny GPT model optionally patched with an LCT output head."""
+
+    cfg = GPTConfig(vocab_size=1 << 15, n_layer=4, n_head=8, n_embd=512)  # type: ignore[arg-type]
+    model = GPT(cfg).cuda()  # type: ignore[arg-type]
+
+    if use_lct:
+        # Replace the projection layer with a learnable LCT.  This assumes the
+        # stock GPT exposes ``model.proj`` – adapt if the API is different.
+        if hasattr(model, "proj"):
+            model.proj = LCTLayer().cuda()
+        else:  # pragma: no cover
+            raise AttributeError("GPT model does not expose a 'proj' attribute to patch.")
+
+    return model
 
 
-def main() -> None:  # noqa: D401
-    args = _parse_args()
+def run(use_lct: bool = False) -> float:
+    """Return throughput in tokens/sec measured over a 300-second window."""
 
-    dev_ctx = torch.device(args.device)
-
-    x = torch.randn(args.size, device=dev_ctx, dtype=torch.complex64)
-    layer = LCTLayer().to(dev_ctx)  # default params (behave like FFT)
-
-    # Warm-up (esp. important for CUDA)
-    try:
-        layer(x)
-    except NotImplementedError:
-        print("[WARN] LCT kernel not implemented yet – exiting benchmark early.")
-        return
-
-    torch.cuda.synchronize() if dev_ctx.type == "cuda" else None
+    model = _build_model(use_lct)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+    batch = torch.randint(0, 1 << 15, (32, 128), device="cuda")
 
     start = time.perf_counter()
-    for _ in range(args.repeat):
-        _ = layer(x)
-    torch.cuda.synchronize() if dev_ctx.type == "cuda" else None
-    stop = time.perf_counter()
+    processed = 0
+    while (elapsed := time.perf_counter() - start) < 300:  # 5 minutes safety
+        loss = model(batch)  # type: ignore[call-arg]
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+        processed += batch.numel()
 
-    print(f"elapsed: {(stop-start)/args.repeat*1e3:.3f} ms per call")
+    return processed / elapsed
 
 
 if __name__ == "__main__":
-    main()
+    ap = ArgumentParser()
+    ap.add_argument("--lct", action="store_true", help="Enable LCT layer patch")
+    args = ap.parse_args()
+    tok_per_sec = run(args.lct)
+    tag = "LCT" if args.lct else "baseline"
+    print(f"{tag}: {tok_per_sec:,.1f} tok/s")
