@@ -1,0 +1,59 @@
+# Ignore heavy or irrelevant files to keep the Modal upload snappy
+
+# Git internals
+.git/
+.git/*
+fsmonitor--daemon-ipc
+# Large datasets / checkpoints / logs
+records*/
+data/
+
+# Paper artefacts
+**/*.pdf
+**/*.eps
+**/*.png
+
+# Latex build artefacts
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+
+# Caches
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.env
+.venv
+env/
+venv/
+ENV/
+.env.bak/
+.venv.bak/
+.DS_Store
+
+# Misc
+*.pt
+*.ckpt
