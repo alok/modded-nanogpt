@@ -116,6 +116,55 @@ _REFERENCE_DISPATCH["laplace"] = _laplace_reference
 
 
 # -----------------------------------------------------------------------------
+# Fourier reference via the same quadrature harness
+# -----------------------------------------------------------------------------
+
+
+def _fourier_quad_reference(n: int) -> torch.Tensor:  # noqa: D401
+    """Unitary DFT matrix via plain Riemann-sum quadrature.
+
+    This mirrors :pyfunc:`_laplace_reference` but omits the extra global phase.
+    The formula reduces to the standard unitary DFT:
+
+        Fₖₙ = exp(−i 2π k n / N) / √N.
+    """
+
+    import math
+
+    dtype = torch.complex64
+
+    k = torch.arange(n, dtype=dtype)
+    omega = (2 * math.pi / n) * k
+
+    t = torch.arange(n, dtype=dtype)
+
+    phase = torch.outer(omega, t)
+    kernel = torch.exp(-1j * phase)
+
+    return (kernel / math.sqrt(n)).to(dtype)
+
+
+# Optional dispatch (not required by current parameterised tests)
+_REFERENCE_DISPATCH["fourier_quad"] = _fourier_quad_reference
+
+
+# -----------------------------------------------------------------------------
+# Extra tests: ensure quadrature ↔ analytic FFT agree for Fourier case
+# -----------------------------------------------------------------------------
+
+
+def test_fourier_quadrature_matches_fft():
+    """Quadrature-derived DFT should equal torch.fft reference."""
+
+    n = 8  # slightly larger for a stronger check
+
+    torch_fft = _fourier_reference(n)
+    quad_fft = _fourier_quad_reference(n)
+
+    assert torch.allclose(torch_fft, quad_fft, atol=1e-5)
+
+
+# -----------------------------------------------------------------------------
 # Actual tests
 # -----------------------------------------------------------------------------
 
