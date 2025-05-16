@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [2025-05-12 04:53] Integrated LCT layer as an optional replacement for the language model head in NanoGPT
 - [2025-05-12 04:53] Enhanced benchmark suite with comprehensive metrics (tokens/sec, latency, memory)
 - [2025-05-12 04:53] Added distributed benchmarking support on Modal with H100s
+- (2025-05-16:12:00) NeurIPS paper scaffolding ported from `infnum`: section‐based LaTeX skeleton under `paper/sections/*` using local `neurips_2025.sty`.
+- New documentation `docs/lct_use_cases.md` describing three rapid-tuning neural activation use cases (Fresnel Vision Attention, Beam-Splash Diffusion, Mirror-Symmetry Mixer).
 
 ### Changed
 
@@ -37,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [2025-05-12 04:53] Modified GPT class to support optional LCT-based language model head
 - [2025-05-12 04:53] Improved benchmark script with proper warmup and measurement phases
 - [2025-05-12 04:53] Updated Modal deployment for more thorough testing and result collection
+- `README.md` now begins with a focus-shift notice de-emphasising Modal H100 benchmarking in favour of the LCT research agenda.
 
 ### Added (continued)
 
