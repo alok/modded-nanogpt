@@ -2,17 +2,4 @@
 \section{Related Work}
 \label{sec:related_work}
 % -----------------------------------------------------------------------------
-
-Our work on adaptive Linear Canonical Transform (LCT) layers builds upon several lines of research in signal processing, deep learning, and efficient Transformer architectures.
-
-\textbf{Linear Canonical Transforms:} The LCT \citep{wolf1979integral, healy2016linear} is a three-parameter class of linear integral transforms that generalizes many important transforms, including the Fourier Transform (FT), Fractional Fourier Transform (FrFT), Fresnel transform (used in optics), and scaling operations. Its applications are widespread in signal processing and wave optics for tasks like filter design, time-frequency analysis, and phase retrieval \citep{ozaktas2001fractional, pei2000two}. While LCTs are well-established mathematically, their use as learnable, adaptive components within deep neural networks, particularly for sequence modeling, is less explored.
-
-\textbf{Fourier and Spectral Methods in Deep Learning:} The Fourier Transform and its variants have found numerous applications in deep learning. FNet \citep{lee2021fnet} demonstrated that replacing self-attention layers in Transformers with unparameterized Fourier Transforms can achieve competitive performance with significantly reduced computational cost. Other works have explored spectral pooling, FFT-based convolutions \citep{mathieu2013fast}, and attention mechanisms in the frequency domain \citep{chi2022flashfft}. These approaches typically use fixed spectral transforms, whereas our LCT layer allows the transform itself to be learned.
-
-\textbf{Efficient Transformer Architectures:} A large body of work aims to improve the efficiency of Transformer models, primarily by addressing the quadratic complexity of self-attention. This includes sparse attention patterns \citep{child2019generating}, low-rank approximations \citep{wang2020linformer}, and recurrent formulations \citep{dai2019transformerxl}. Our approach is complementary, focusing on the efficiency and expressiveness of the linear transformations within the Transformer blocks, which can be used in conjunction with various attention mechanisms.
-
-\textbf{Adaptive and Dynamic Neural Networks:} The concept of making network components adaptive or dynamic has been explored in various contexts, such as adaptive activation functions \citep{ mesela2021dynamic}, dynamic routing in capsule networks \citep{sabour2017dynamic}, and adaptive depth/width networks \citep{NEURIPS2019_0cb929eae}. Learnable LCT parameters align with this theme, allowing the model to tailor its internal transformations based on the data and task.
-
-[TODO: Add 1-2 more recent/highly relevant citations for each sub-area, especially for LCTs in ML if any, and adaptive layers in Transformers.]
-
 Fourier and fractional Fourier layers have been explored as global mixing operations in Transformers\citep{lee2021fnet,chi2022flashfft}.  The optical community has long studied the Linear Canonical Transform\citep{pei1997,chen2009} but its learnable discretisation in deep nets remains under‐explored.
