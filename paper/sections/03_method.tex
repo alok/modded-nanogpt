@@ -1,22 +1,4 @@
 % -----------------------------------------------------------------------------
-\section{Method}
-TODO: Method content goes here.
-
-\subsection{Linear Canonical Transform (LCT)}
-Definition of LCT, ABCD matrix, symplectic condition.
-
-\subsection{Discrete LCT Implementation (LCTLayer)}
-Our proposed `LCTLayer(nn.Module)`.
-Learnable parameters \(a, b, c\) (real scalars).
-Analytical inverse: \((d, -b, -c, a)\).
-JIT-friendly and GPU-compatible (bf16, fp8 support considerations).
-Special cases: FFT (a=0,b=1,c=0), scaling (b=0).
-
-\subsection{Integration into NanoGPT}
-Replacing `nn.Linear` or specific projection layers with `LCTLayer`.
-Discussion of where LCTs are most beneficial (e.g., attention, FFN).
-
-% -----------------------------------------------------------------------------
 \section{The \textsc{LCT} Layer}
 \label{sec:method}
 
