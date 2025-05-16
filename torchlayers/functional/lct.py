@@ -89,9 +89,42 @@ def linear_canonical_transform(
 ) -> Tensor:
     """Apply the discrete Linear Canonical Transform along *dim*.
 
-    This routine implements the **chirp–FFT–chirp** factorisation and supports
-    *complex64/128* inputs.  It returns a complex tensor regardless of the
-    input dtype.
+    This routine implements the discrete LCT using two main algorithms:
+    1.  For the generic case (b ≠ 0 and |b| ≠ 1, or when high precision for
+        composition is prioritized over speed for small N), a dense kernel matrix
+        is constructed based on the continuous LCT formula, appropriately discretized.
+        If `normalized=True`, this dense kernel is projected to the nearest unitary
+        matrix using QR decomposition to ensure energy preservation.
+    2.  For the special case |b| = 1 (e.g., Fourier Transform where b=1, or scaled
+        variants), a fast chirp-FFT-chirp algorithm is used. This path is O(N log N).
+    3.  For the degenerate case b = 0, the transform reduces to a scaling operation
+        (resampling) музыка combined with a chirp multiplication. Resampling is performed
+        using bilinear interpolation via `torch.nn.functional.grid_sample`.
+
+    The LCT is defined by parameters (a, b, c, d) of a symplectic matrix
+    [[a, b], [c, d]] such that ad - bc = 1.
+
+    Args:
+        x (Tensor): Input tensor. The transform is applied along the given `dim`.
+            Expected to be complex, but will be cast to `torch.complex64` internally.
+        a (Tensor | float): Parameter 'a' of the LCT matrix.
+        b (Tensor | float): Parameter 'b' of the LCT matrix.
+        c (Tensor | float): Parameter 'c' of the LCT matrix.
+        d (Tensor | float): Parameter 'd' of the LCT matrix. Must satisfy ad-bc=1.
+        dim (int, optional): Dimension along which to apply the LCT. Defaults to -1.
+        normalized (bool, optional): If True, attempts to make the transform unitary.
+            For the dense kernel (b≠0, |b|≠1), this involves a QR projection.
+            For the chirp-FFT-chirp path (|b|=1), uses `norm="ortho"` for FFT and
+            appropriate scaling factors. Defaults to True.
+        centered (bool, optional): If True, assumes the input signal `x` and the LCT
+            kernels are centered around the origin (n - (N-1)/2). This affects the phase
+            of the chirp signals and the grid for resampling. Defaults to True.
+
+    Returns:
+        Tensor: The transformed tensor, always of complex dtype.
+
+    Raises:
+        ValueError: If the parameters a,b,c,d do not satisfy ad - bc = 1 (within tolerance).
     """
 
     if abs(a * d - b * c - 1) > 1e-6:
@@ -108,27 +141,98 @@ def linear_canonical_transform(
         torch.is_tensor(b)
         and torch.isclose(b, torch.tensor(0.0, dtype=b.dtype, device=b.device))
     ):
-        scale = d
-        sqrt_d = torch.sqrt(torch.tensor(d, dtype=x.dtype, device=x.device))
+        # Ensure d is a tensor for consistent operations
+        d_tensor = torch.as_tensor(d, dtype=x.dtype, device=x.device)
+        scale = d_tensor
+        sqrt_d = torch.sqrt(d_tensor)
 
-        idx = torch.arange(N, device=x.device, dtype=torch.float32)
-
+        # Create sampling grid for x(d*u)
+        # Grid values for grid_sample should be in [-1, 1]
+        # u_grid represents the output coordinates (0 to N-1, or centered)
+        u_grid_float = torch.arange(N, device=x.device, dtype=torch.float32)
         if centered:
-            # Use half-sample centring consistent with `_chirp_phase` so that
-            # *identity* parameters map each index to itself and avoid the
-            # degeneracy observed in earlier implementations.
-            idx_centered = idx - (N - 1) / 2
-            sample_pos = scale * idx_centered + (N - 1) / 2
+            u_grid_centered = u_grid_float - (N - 1) / 2.0
+            # t_points are the points in the original signal x we want to sample
+            t_points = scale * u_grid_centered
+            # Normalize t_points to [-1, 1] relative to original signal's centered grid
+            # Original centered grid for x goes from -(N-1)/2 to (N-1)/2
+            # So, normalized_t = t_points / ((N-1)/2) if N > 1 else t_points
+            # Max extent of original centered grid is (N-1)/2
+            max_abs_coord_orig = (
+                (N - 1) / 2.0 if N > 1 else 1.0
+            )  # Avoid div by zero if N=1
+            grid_for_sample = (
+                t_points / max_abs_coord_orig
+                if max_abs_coord_orig != 0
+                else torch.zeros_like(t_points)
+            )
         else:
-            sample_pos = scale * idx
+            # t_points are scale * u_grid_float (0 to N-1)
+            # Original grid for x is 0 to N-1
+            # Normalized: (2 * t_points / (N-1)) - 1 if N > 1 else 0
+            t_points = scale * u_grid_float
+            grid_for_sample = (
+                (2 * t_points / (N - 1) - 1) if N > 1 else torch.zeros_like(t_points)
+            )
 
-        # Nearest-neighbour resample (placeholder – upgrade to interpolation
-        # once demanded by experiments).
-        sample_pos = sample_pos.round().clamp(0, N - 1).to(torch.long)
-        resampled = x.index_select(dim, sample_pos)
+        # ------------------------------------------------------------------
+        # Resampling via `grid_sample`
+        # ------------------------------------------------------------------
+        # `torch.nn.functional.grid_sample` operates on 4-D (or 5-D) tensors
+        # shaped *(B, C, H, W)* and expects a grid of shape
+        # *(B, H_out, W_out, 2)* that stores *(x, y)* coordinates normalised
+        # to the ``[-1, 1]`` interval.  For **1-D** signals we embed the vector
+        # as a *single-row image* (``H = 1``) and keep the *y* coordinate at
+        # zero.
+
+        original_shape = x.shape  # save for later
+
+        # Flatten all batch dimensions so that the last axis is the signal
+        # length N.  Afterwards reshape to *(B, 1, 1, N)* → H=1, W=N.
+        x_reshaped = x.reshape(-1, 1, 1, N)
+
+        # Build the 4-D grid: (1, 1, N, 2) where the second channel stores the
+        # constant *y = 0* coordinate.  The grid is shared across the batch and
+        # will broadcast automatically.
+        grid_x = grid_for_sample.to(dtype=torch.float32)
+        grid = torch.zeros(1, 1, N, 2, device=x.device, dtype=torch.float32)
+        grid[..., 0] = grid_x  # x-coordinate along the width dimension
+        grid[..., 1] = 0.0  # y-coordinate (row) – single row at centre
+
+        # Repeat grid across the flattened batch dimension so that
+        # `grid_sample` sees matching batch sizes.  Using `expand` avoids an
+        # actual memory copy.
+        grid = grid.expand(x_reshaped.shape[0], -1, -1, -1)
+
+        # Interpolate real and imaginary parts separately (grid_sample does not
+        # yet support complex tensors).
+        resampled_real = torch.nn.functional.grid_sample(
+            x_reshaped.real,
+            grid,
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=True,
+        )
+        resampled_imag = torch.nn.functional.grid_sample(
+            x_reshaped.imag,
+            grid,
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=True,
+        )
+
+        # Collapse the dummy spatial dimension and restore the original shape.
+        resampled = torch.complex(resampled_real.squeeze(2), resampled_imag.squeeze(2))
+        resampled = resampled.reshape(original_shape)
+
+        chirp_coeff = c * d  # c and d can be tensors or floats
+        if torch.is_tensor(c) or torch.is_tensor(d):
+            chirp_coeff = torch.as_tensor(c, device=x.device) * torch.as_tensor(
+                d, device=x.device
+            )
 
         chirp = _chirp_phase(
-            N, c * d, device=x.device, dtype=x.dtype, centered=centered
+            N, chirp_coeff, device=x.device, dtype=x.dtype, centered=centered
         )
         resampled = sqrt_d * resampled * torch.moveaxis(chirp, 0, dim)
         return resampled
@@ -337,12 +441,34 @@ def symplectic_d(
 ) -> Tensor | float:  # noqa: D401
     """Return *d* so that the 2×2 matrix ``[[a, b], [c, d]]`` has unit determinant.
 
-    The symplectic condition is ``ad − bc = 1``.  For the *generic* case
-    ``a ≠ 0`` we may solve explicitly for ``d = (1 + b c) / a``.  However, when
-    ``a`` vanishes (e.g. Fourier–Fresnel special cases) that formula becomes
-    ill-defined.  In that regime the determinant constraint reduces to
-    ``−b c = 1`` and **any** value of ``d`` satisfies the requirement.  We
-    choose the minimal solution ``d = 0`` for numerical stability.
+    The symplectic condition is ``ad − bc = 1``. This function solves for `d`.
+
+    For the *generic* case ``a ≠ 0``, we may solve explicitly for ``d = (1 + b c) / a``.
+    However, when ``a`` vanishes (e.g., Fourier or Fresnel special cases where a=0),
+    that formula becomes ill-defined. In that regime, the determinant constraint
+    reduces to ``−b c = 1``. If this holds, *any* value of ``d`` satisfies the LCT
+    definition if ``b != 0`` (as `d` only appears as `d/b` in chirps or in the `b=0` path).
+    If ``b = 0`` as well when ``a = 0``, then the matrix is degenerate unless ``c=0`` too (identity transform).
+    This function provides a numerically stable way to find a suitable `d`:
+    - If `a != 0`, `d = (1 + b*c) / a`.
+    - If `a == 0`:
+        - If `b != 0` and `c != 0` such that `-bc=1`, `d` can be chosen as `0.0` for simplicity
+          (as its actual value in the `d/b` terms might be compensated or less critical).
+        - If `b == 0`, then for `ad-bc=1` we need `0=1` unless `c` is also `0` (Identity case where `d=1/a` if `a` not 0, or `d=1` if `a=1`).
+          The `LCTLayer` typically ensures `a,b,c` are such that `d` is well-defined or defaults to identity-like params.
+          Here, we simply return `0.0` if `a=0` and `-b*c != 1` as a convention, or rely on the caller to ensure valid params.
+          A more robust `d` for `a=0` is found if `-bc=1`, in which case `d` can be anything; `0.0` is chosen.
+          If `a=0` and `-bc != 1`, the parameters are inconsistent for a unit determinant.
+          The primary check `abs(a*d-b*c-1) > 1e-6` in `linear_canonical_transform` catches inconsistencies.
+
+    Args:
+        a (Tensor | float): Parameter 'a'.
+        b (Tensor | float): Parameter 'b'.
+        c (Tensor | float): Parameter 'c'.
+
+    Returns:
+        Tensor | float: Parameter 'd' that satisfies ad - bc = 1, assuming `a` is not zero,
+                      or a conventional value (e.g., 0.0) if `a` is zero.
     """
 
     # Handle Python scalars first to avoid tensor overhead in the hot path.
