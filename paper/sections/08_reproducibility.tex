@@ -2,3 +2,37 @@
 \section*{Reproducibility Statement}
 % -----------------------------------------------------------------------------
 All experiments are reproducible with the provided \texttt{run.sh}.  A Docker image and WandB logs are linked in the supplementary material.
+
+\section{Reproducibility Statement and Broader Impact}
+\label{sec:repro_impact}
+
+\subsection*{Reproducibility}
+All code for the `LCTLayer` implementation and its integration into the NanoGPT framework is available at [TODO: GitHub repository URL upon release]. The `torchlayers/functional/lct.py` file contains the core LCT numerical kernels, and `torchlayers/lct.py` provides the `nn.Module`.
+
+Experiments are based on publicly available datasets: TinyShakespeare (via Andrej Karpathy's char-rnn repository) and the FineWeb dataset \citep{FineWeb}. Specific data preprocessing steps follow standard NanoGPT procedures. [TODO: Specify if a particular FineWeb 10B sample is used and how to obtain it, or point to `data/download_fineweb.py` if applicable.]
+
+Model hyperparameters for both baseline and LCT-NanoGPT are detailed in Section \ref{sec:experiments} and will be configurable through provided training scripts (e.g., `train_gpt.py`). The benchmarking script (`bench/bench_lct.py`) allows for reproducing throughput measurements.
+
+Training and benchmarking can be performed locally on suitable GPU hardware (e.g., NVIDIA RTX 3090/4090 or A-series/H-series GPUs) or via cloud platforms. Our primary large-scale training and H100 benchmarks are conducted using Modal (modal.com), with configuration specified in `modal_app.py`.
+
+[TODO: Add details on Python version (3.12), PyTorch version (e.g., 2.5+), and key dependencies managed by `uv` as listed in `pyproject.toml` or `requirements.txt`.]
+
+\subsection*{Broader Impact}
+This work focuses on a foundational algorithmic improvement for neural network layers, aiming to enhance model efficiency and potentially discover novel learned transformations.
+
+\textbf{Positive Impacts:}
+\begin{itemize}
+  \item \textit{Improved Efficiency:} If LCT layers lead to faster or more parameter-efficient models, this could reduce the computational cost of training and inference for large language models, making them more accessible and environmentally sustainable.
+  \item \textit{Enhanced Model Capabilities:} Learned adaptive transforms might capture data structures or relationships that fixed transforms cannot, potentially leading to better performance or new capabilities in areas like time-series analysis, signal processing within models, or other sequence modeling tasks.
+  \item \textit{Scientific Understanding:} Analyzing the learned LCT parameters could provide insights into the types of transformations that are most beneficial for particular tasks or data modalities.
+\end{itemize}
+
+\textbf{Potential Negative Societal Impacts:} As a component technology for LLMs, this work indirectly shares the broader societal concerns associated with large language models. These include:
+\begin{itemize}
+  \item \textit{Misuse:} LLMs can be used to generate misinformation, spam, or malicious content. While LCT layers themselves do not exacerbate this, more efficient LLMs could lower the barrier to such misuse if not accompanied by appropriate safeguards.
+  \item \textit{Bias and Fairness:} LLMs can perpetuate or amplify biases present in their training data. The LCT layer is unlikely to directly influence this aspect, which is more related to data and model objectives.
+  \item \textit{Job Displacement and Economic Shifts:} Advances in AI, including more efficient LLMs, contribute to ongoing discussions about automation and its economic impact.
+\end{itemize}
+Mitigation strategies for these broader LLM impacts rely on responsible development practices, ethical guidelines, robust evaluation, and public discourse, which are beyond the scope of this specific layer-level research but are important context for any work contributing to LLM capabilities.
+
+Our work aims to be a positive contribution towards more resource-efficient and potentially more capable AI systems. We commit to open-sourcing our code to facilitate scrutiny and further research.

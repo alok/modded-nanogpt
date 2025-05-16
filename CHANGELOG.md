@@ -42,7 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `tyro` to `requirements.txt`.
 - Created `justfile` with targets for `test`, `lint`, `bench-lct`, and `paper` compilation.
 - Updated NeurIPS paper sections (`00_abstract.tex`, `01_introduction.tex`, `04_experiments.tex`, `05_results.tex`, `99_checklist.tex`) with placeholders and current progress.
-- Created `paper/outline.md` to guide abstract writing.
 
 ### Changed
 
@@ -81,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Set `image=image` for `main()` so that `uv` binary is present in container, fixing FileNotFoundError.
 - Resolved some LaTeX formatting issues in `paper/sections/04_experiments.tex` and `paper/sections/99_checklist.tex` related to special characters.
 - (Previously) Corrected LCT dense kernel implementation in `torchlayers/functional/lct.py` to improve unitarity for real parameters using QR projection.
+- ([YYYY-MM-DD HH:MM UTC]) Corrected `b=0` resampling path in `LCTLayer` for 1-D signals. Unit tests now pass.
 
 ### Removed
 

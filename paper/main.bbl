@@ -1,0 +1,28 @@
+\begin{thebibliography}{4}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Chen and Xiang(2009)]{chen2009}
+Wen Chen and Jian-wei Xiang.
+\newblock The discrete fractional fourier transform: a new perspective.
+\newblock \emph{Signal Processing}, 89\penalty0 (10):\penalty0 1984--1988, 2009.
+
+\bibitem[Chi et~al.(2022)Chi, Chen, Song, Shinnar, Schärli, and Zhou]{chi2022flashfft}
+Daniel~Y. Chi, C.~Chen, S.~Song, A.~Shinnar, N.~Schärli, and Denny Zhou.
+\newblock Flashfftconv: Efficient convolutions for long sequences with tensor cores.
+\newblock \emph{arXiv preprint arXiv:2208.09952}, 2022.
+
+\bibitem[Lee-Thorp et~al.(2021)Lee-Thorp, Ainslie, Eckstein, and Ontanon]{lee2021fnet}
+James Lee-Thorp, Joshua Ainslie, Immanuel Eckstein, and Santiago Ontanon.
+\newblock Fnet: Mixing tokens with fourier transforms.
+\newblock \emph{arXiv preprint arXiv:2105.03824}, 2021.
+
+\bibitem[Pei and Ding(1997)]{pei1997}
+Soo-Chang Pei and Jian-Jiun Ding.
+\newblock Two-dimensional discrete fractional fourier transform.
+\newblock \emph{IEEE Transactions on Signal Processing}, 45\penalty0 (6):\penalty0 1355--1370, 1997.
+
+\end{thebibliography}

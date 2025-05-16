@@ -1,4 +1,21 @@
 % -----------------------------------------------------------------------------
 \section{Conclusion}
+\label{sec:conclusion}
 % -----------------------------------------------------------------------------
+
+In this work, we proposed the `LCTLayer`, an adaptive layer based on the Linear Canonical Transform, as a novel component for neural network architectures, particularly Transformers. By allowing the model to learn the LCT parameters \((a,b,c)\), we provide a mechanism for discovering data-dependent transformations that generalize fixed operations like the Fourier Transform.
+
+Our preliminary experiments with integrating `LCTLayer` into a NanoGPT-style model suggest [TODO: Briefly restate key positive finding, e.g., "promising improvements in computational throughput while maintaining competitive language modeling performance," or "a favorable speed-accuracy trade-off compared to the baseline"].
+
+The main contributions of this paper are:
+\begin{itemize}
+  \item The design and PyTorch implementation of a JIT-compatible, GPU-accelerated `LCTLayer` with learnable parameters and an analytical inverse.
+  \item The integration of this layer into a standard Transformer (NanoGPT) architecture.
+  \item An initial empirical evaluation demonstrating [TODO: e.g., "the potential for efficiency gains" or "the adaptability of the learned transforms"].
+\end{itemize}
+
+Future work will focus on more extensive benchmarking across larger datasets and model sizes, exploring the application of 2D LCTs for vision tasks, and a deeper theoretical analysis of the learned LCT parameter spaces and their inductive biases. We also plan to investigate optimal strategies for LCT layer placement and initialization within various neural architectures.
+
+We believe that adaptive transform layers like the LCTLayer offer a promising direction for building more efficient, expressive, and versatile deep learning models.
+
 The \textsc{LCT} layer generalises Fourier projections and delivers consistent speed/accuracy improvements across modalities.  We release code and pre‐trained weights to facilitate adoption.

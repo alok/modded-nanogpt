@@ -2143,3 +2143,87 @@ When any task completes, open this file, tick box ✅, append to _Decisions_ if 
 ---
 
 ## 97. Next Update Trigger
+
+## 2-Hour Sprint Plan (YYYY-MM-DD HH:MM UTC) – Paper First Focus
+=====================================
+
+Guiding principle (after Simon Peyton Jones): Write the paper **now** and let the code & experiments grow to make each section true.
+The document becomes the schedule; every day ends with a commit to `paper/`.
+
+Time-boxed in 10-minute "pomodoros".
+Use `watch -n 60 just status` (or similar) to keep focus.
+
+Legend:
+⏱ = minutes budget •  ✅ = done •  🔄 = in-progress •  ⌛ = waiting
+
+──────────────────────────────────────────────────────────
+### 00:00-00:10  |  Branch & Commit Hygiene
+⏱ 10
+1. `git switch -c fix/lct-scaling-b0`  ✅
+2. `pytest -q` (already green)  ✅
+3. `git add torchlayers/functional/lct.py`  ✅
+4. `git commit -S -m "fix(lct): correct b=0 resampling (unit tests green)"` ✅
+5. `git switch main && git merge --no-ff fix/lct-scaling-b0` ✅
+6. Update `CHANGELOG.md` under "Unreleased". ✅
+7. Push. ✅
+
+### 00:10-00:25  |  Paper Skeleton
+⏱ 15
+1. `git switch -c paper/bootstrap`
+2. Copy NeurIPS 2025 template → `paper/main.tex`.
+3. Create `paper/sections/intro.tex`, `method.tex`, `experiments.tex`, `results.tex`, `related.tex`, `conclusion.tex`.
+4. Insert `\input{sections/…}` lines.
+5. Compile once: `latexmk -pdf -silent paper/main.tex`.
+
+### 00:25-00:35  |  Outline & Placeholders
+⏱ 10
+1. `paper/outline.md` – bullet headings mirroring sections.
+2. Stub abstract (≤150 w placeholder).
+3. Figure & table environments with TODO captions.
+
+### 00:35-00:45  |  Automation Hooks
+⏱ 10
+1. Add Justfile entries:
+   ```makefile
+   paper:build: latexmk -pdf -silent paper/main.tex
+   paper:watch: latexmk -pdf -pvc paper/main.tex
+   ```
+2. CI: append step to GitHub Actions (skip if not essential now).
+
+### 00:45-01:00  |  Method Section → LCT Overview
+⏱ 15
+Draft 2-paragraph description:
+• Definition of discrete LCT; parameters (a,b,c,d).
+• Our `LCTLayer`: learnable a,b,c; inverse analytically; GPU-friendly.
+
+### 01:00-01:15  |  Experiments Scaffold
+⏱ 15
+1. Table skeleton (baseline vs LCT).
+2. Text stub describing dataset (TinyShakespeare) and metrics.
+
+### 01:15-01:30  |  Results & Discussion Placeholders
+⏱ 15
+1. Add Figure placeholder for speed-accuracy curve.
+2. One bullet on expected gains (to be filled when numbers ready).
+
+### 01:30-01:40  |  Related Work Quick List
+⏱ 10
+Bullets: FrFT in signal processing; FFT acceleration; efficient transformers.
+
+### 01:40-01:50  |  Conclusion & Broader Impact Stubs
+⏱ 10
+Single paragraph each with TODO markers. Create `paper/sections/broader_impact.tex` and `paper/sections/checklist.tex`.
+
+### 01:50-02:00  |  Finalise & Push
+⏱ 10
+1. `latexmk` – ensure PDF builds.
+2. `git add paper/ Justfile CHANGELOG.md AGENT.md`
+3. `git commit -S -m "docs(paper): bootstrap NeurIPS skeleton with outline"`
+4. `git push --set-upstream origin paper/bootstrap`
+5. Update `AGENT.md` log (timestamp + checklist ticks).
+
+──────────────────────────────────────────────────────────
+Hard checkpoints
+• 00:25 – PDF builds with empty sections.
+• 01:30 – Method & Experiments have initial prose.
+• 02:00 – All commits pushed; CI green.

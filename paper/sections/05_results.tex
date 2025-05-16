@@ -1,4 +1,56 @@
 % -----------------------------------------------------------------------------
 \section{Results}
+\label{sec:results}
 % -----------------------------------------------------------------------------
-Table~\ref{tab:wikitext} reports validation perplexity; our layer matches the baseline while reducing wall‐clock by 23\%.  Figure~\ref{fig:ablation} visualises the throughput/accuracy Pareto frontier.
+This section presents the empirical results comparing the LCT-NanoGPT model with the baseline NanoGPT. We focus on [TODO: e.g., language modeling perplexity and training throughput].
+
+\begin{table}[h!]
+  \centering
+  \caption{Benchmark Results: Baseline NanoGPT vs. \textsc{LCT}-NanoGPT. Throughput measured on [TODO: GPU, e.g., A100 SXM4 80GB] with batch size [TODO: BS] and sequence length [TODO: SL]. [TODO: Add note if model parameters are matched or relative sizes].}
+  \label{tab:results}
+  \begin{tabular}{lcc}
+    \toprule
+    Model Variant & Throughput (tokens/sec) & [TODO: (Optional) Validation Loss] \\
+    \midrule
+    Baseline NanoGPT    & [TODO: Baseline T/s] & [TODO: Baseline Loss/PPL] \\
+    \textsc{LCT}-NanoGPT (ours) & [TODO: LCT T/s]      & [TODO: LCT Loss/PPL] \\
+    \midrule
+    Relative Speedup    & [TODO: LCT T/s / Baseline T/s] & - \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+[TODO: Briefly discuss the numbers in the table. For instance: "The \textsc{LCT}-NanoGPT model achieved a throughput of X tokens/second, representing a Y\% improvement over the baseline's Z tokens/second. This suggests that the LCT layer, even with the current unoptimized parameters and simple integration, can offer computational benefits... If loss/perplexity was measured, comment on that too, e.g., ...while achieving a comparable validation loss of A versus B for the baseline after N steps/hours of training."]
+
+[TODO: Add a sentence about parameter counts if they differ significantly, or state they are comparable.]
+
+Further experiments, including full training runs to convergence and ablation studies on LCT layer placement and parameterization, are planned as future work.
+
+\begin{table}[htbp]
+  \centering
+  \caption{TODO: Comparison of NanoGPT baseline vs. LCT-NanoGPT. Performance metrics include final validation perplexity (PPL) and training throughput (tokens/sec) on the [TODO: TinyShakespeare/FineWeb Sample] dataset.}
+  \label{tab:main_results}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Model & Perplexity (PPL) & Tokens/sec & Params (M) \\
+    \midrule
+    NanoGPT (Baseline) & TODO & TODO & TODO \\
+    LCT-NanoGPT (Ours) & TODO & TODO & TODO \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  % \includegraphics[width=0.8\columnwidth]{figures/speed_accuracy_tradeoff.png} % Example
+  \fbox{TODO: Placeholder for Plot}
+  \caption{TODO: Learning curves comparing validation perplexity (or loss) of NanoGPT baseline and LCT-NanoGPT over training steps/time. Optionally, a plot showing speed (tokens/sec) vs. accuracy (PPL) if multiple configurations are tested.}
+  \label{fig:learning_curves_or_pareto}
+\end{figure}
+
+\subsection*{Discussion of Results}
+Discussion of results:
+- Quantitative comparison from Table \ref{tab:main_results}.
+- Qualitative observations (e.g., training stability, convergence speed).
+- Interpretation of Figure \ref{fig:speed_accuracy}.
+- Expected gains: e.g., "LCT-NanoGPT achieved X\% higher tokens/second with a Y\% increase/decrease in PPL compared to the baseline."

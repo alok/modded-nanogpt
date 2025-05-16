@@ -1,17 +1,53 @@
 % -----------------------------------------------------------------------------
-\section{The \textsc{LCT} Layer}
+\section{Method}
+TODO: Method content goes here.
+
+\subsection{Linear Canonical Transform (LCT)}
+Definition of LCT, ABCD matrix, symplectic condition.
+
+\subsection{Discrete LCT Implementation (LCTLayer)}
+Our proposed `LCTLayer(nn.Module)`.
+Learnable parameters \(a, b, c\) (real scalars).
+Analytical inverse: \((d, -b, -c, a)\).
+JIT-friendly and GPU-compatible (bf16, fp8 support considerations).
+Special cases: FFT (a=0,b=1,c=0), scaling (b=0).
+
+\subsection{Integration into NanoGPT}
+Replacing `nn.Linear` or specific projection layers with `LCTLayer`.
+Discussion of where LCTs are most beneficial (e.g., attention, FFN).
+
 % -----------------------------------------------------------------------------
-We parameterise the discrete LCT by the symplectic matrix
-\[ S \;=\;
-  \begin{bmatrix} a & b \\ c & d
-\end{bmatrix}, \qquad ad - bc = 1. \]
-Only \((a,b,c)\) are learnable; we compute $d$ on the fly via the symplectic constraint.  When $a=0$ and $c=0$ the layer reduces to an orthonormal DFT.
+\section{The \textsc{LCT} Layer}
+\label{sec:method}
 
-\subsection{Forward Pass}
-The transform factorises into a chirp phase, FFT, and a second chirp:
-\[ X = C_2 \, F \left( C_1 \odot x \right). \]
-This admits an $\mathcal{O}(N \log N)$ implementation building on
-\verb|torch.fft.fft| for GPU acceleration.
+We introduce an adaptive Linear Canonical Transform (LCT) layer, termed `LCTLayer`, designed as a flexible and learnable alternative to standard linear transformations or fixed Fourier-based operations within neural networks. This section details the LCT fundamentals, our discrete implementation, and its integration into NanoGPT-style architectures.
 
-\subsection{Inverse Pass}
-Because the discretisation is unitary, the backward pass is the Hermitian transpose of the forward kernel, yielding a closed‐form gradient.
+\subsection{Linear Canonical Transform (LCT) Background}
+TODO: Briefly define the continuous 1D LCT relating an input signal \(x(u)\) to an output signal \(X(v)\) via the ABCD matrix parameters:
+\[ X(v) = \int_{-\infty}^{\infty} K(v, u; a, b, c, d) x(u) du \]
+where \(K\) is the LCT kernel. State the symplectic condition \(ad - bc = 1\). Mention key properties like composition.
+
+\subsection{Discrete \textsc{LCT} Implementation (`LCTLayer`)}
+Our `LCTLayer` is a PyTorch `nn.Module` that implements a discrete version of the 1D LCT.
+
+\textbf{Learnable Parameters:} The layer learns three real scalar parameters \(a, b, c\). The fourth parameter, \(d\), is derived to satisfy the symplectic condition \(ad-bc=1\), typically as \(d = (1+bc)/a\) (with handling for \(a \approx 0\)). This is managed by the `symplectic_d` utility function.
+
+\textbf{Forward Pass:} The core computation is performed by the `linear_canonical_transform(x, a, b, c, d)` function. This function implements several numerical algorithms based on the LCT parameters:
+\begin{itemize}
+  \item For \(|b| \approx 1\) (e.g., Fourier Transform where \((a,b,c,d)=(0,1,1,0)\) or Fresnel transforms), a fast chirp-FFT-chirp algorithm is used, leveraging `torch.fft.fft` for an \(O(N \log N)\) complexity.
+  \item For \(b \approx 0\), the LCT reduces to a scaling operation combined with a chirp multiplication. The scaling (resampling) is implemented using `torch.nn.functional.grid_sample`.
+  \item For generic \(b\) values where \(|b|\) is not close to 0 or 1, a dense kernel matrix is constructed based on the discretized continuous LCT formula. To ensure energy preservation, this kernel can be optionally projected to the nearest unitary matrix using QR decomposition (`normalized=True`).
+\end{itemize}
+
+\textbf{Analytical Inverse:} The inverse LCT is obtained by using the parameters \((d, -b, -c, a)\). The `LCTLayer` provides an `inverse()` method that applies this transformation.
+
+\textbf{Signal Centering and Normalization:} The implementation supports options for `centered` signal processing (where the discrete grid is symmetric around zero) and `normalized` transforms (to enforce or approximate unitarity).
+
+\textbf{Compatibility:} The `LCTLayer` is designed to be JIT-compilable via `torch.jit.script`. It operates on GPU and supports mixed-precision training (e.g., bf16), with internal casting to float32 for operations like `grid_sample` if necessary.
+
+\subsection{Integration into NanoGPT-style Models}
+We propose integrating the `LCTLayer` into NanoGPT-style Transformer architectures primarily by replacing standard `nn.Linear` layers within the MLP blocks or in the attention mechanism's projection layers (query, key, value, and output projections).
+
+TODO: Discuss choices for which layers to replace. Since the current LCT is 1D, it operates on the last dimension of an input tensor. If replacing a 2D linear layer (e.g., `nn.Linear(in_features, out_features)`), strategies like applying multiple 1D LCTs across different feature groups or using it as a 1D mixing operation before or after a point-wise projection might be considered. For this work, we will [TODO: specify the exact replacement strategy, e.g., apply to the hidden dimension within MLP, or as a 1D temporal mixing within attention if applicable].
+
+TODO: Discuss LCT parameter initialization (e.g., to approximate identity or FFT initially).

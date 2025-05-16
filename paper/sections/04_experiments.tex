@@ -1,10 +1,42 @@
 % -----------------------------------------------------------------------------
 \section{Experiments}
-% -----------------------------------------------------------------------------
-We benchmark the \textsc{LCT} layer on two standard settings:
-\begin{enumerate}
-  \item \textbf{Language Modelling}: WikiText‐103 using the NanoGPT backbone.
-  \item \textbf{Image Classification}: ImageNet‐32 with a ViT‐Tiny architecture.
-\end{enumerate}
+\label{sec:experiments}
 
-Training uses AdamW with identical hyper‐parameters across baselines.  Details are in Appendix~A.
+To evaluate the efficacy of the adaptive `LCTLayer`, we conduct experiments comparing an LCT-augmented NanoGPT model against a standard NanoGPT baseline. This section outlines the experimental setup, including datasets, model configurations, training procedures, and evaluation metrics.
+
+\subsection{Setup}
+
+\textbf{Dataset:} We primarily use the TinyShakespeare dataset for rapid prototyping and validation of language modeling performance. [TODO: If time and resources permit, we will also report results on a larger, more representative subset of the FineWeb 10B dataset, similar to the setup in `train_gpt.py`.]
+
+\textbf{Model Architectures:}
+\begin{itemize}
+  \item \textbf{Baseline NanoGPT:} We use a standard NanoGPT architecture. Key hyperparameters include: `n_layer`=[TODO: e.g., 6], `n_head`=[TODO: e.g., 6], `n_embd`=[TODO: e.g., 384], `block_size`=[TODO: e.g., 256], `dropout`=[TODO: e.g., 0.2].
+  \item \textbf{LCT-NanoGPT:} This model maintains the same overall architecture and hyperparameter settings as the baseline NanoGPT. The `LCTLayer`s are integrated by replacing specific `nn.Linear` layers. [TODO: Clearly specify which `nn.Linear` layers are replaced: e.g., (1) only in the MLP block (both up-projection and down-projection), (2) only in attention projection layers (Q, K, V, and output), or (3) in both. Specify if the LCT operates on the feature dimension or sequence dimension if ambiguities arise due to its 1D nature vs. typical 2D linear layers.]
+
+  \item \textbf{LCT Parameter Initialization:} The learnable LCT parameters \((a,b,c)\) are initialized to [TODO: specify, e.g., \((a,b,c) = (0,1,0)\) to approximate an FFT, or \((a,b,c) = (1, \epsilon, 0)\) to approximate identity scaling if \(d \approx 1\)].
+\end{itemize}
+
+\textbf{Training Details:} Both models are trained from scratch using the AdamW optimizer \citep{loshchilov2017decoupled} with default PyTorch hyperparameters (e.g., \(\beta_1=0.9, \beta_2=0.999\), learning rate [TODO: e.g., 1e-3 decaying to 1e-4], weight decay [TODO: e.g., 1e-1]). We use a batch size of [TODO: e.g., 64] and train for [TODO: e.g., N epochs or M steps]. Training is performed on [TODO: e.g., a single NVIDIA H100 GPU via Modal labs, or specified local GPU].
+
+\textbf{Metrics:} We evaluate models based on:
+\begin{itemize}
+  \item Standard cross-entropy loss on the validation set.
+  \item Perplexity (PPL) on the validation set.
+  \item Training throughput (tokens per second).
+  \item Wall-clock training time to reach a target loss/PPL (if applicable).
+\end{itemize}
+
+\subsection{Baseline Comparison}
+We will present a direct comparison of the LCT-NanoGPT against the baseline NanoGPT. This will include:
+\begin{itemize}
+  \item Learning curves showing validation loss and perplexity over training steps or wall-clock time.
+  \item A summary table reporting the final validation perplexity, training throughput, and total training time (see Table \ref{tab:main_results} in Section \ref{sec:results}).
+\end{itemize}
+
+\subsection{Ablation Studies (Planned / Optional)}
+[TODO: Depending on time and initial results, we may conduct ablation studies:]
+\begin{itemize}
+  \item \textbf{LCT Parameter Initialization:} Investigate the impact of different initial settings for \(a,b,c\) on convergence and final performance.
+  \item \textbf{LCT Layer Placement:} Compare the effectiveness of integrating LCT layers at different positions within the Transformer block (e.g., MLP vs. attention).
+  \item \textbf{Learnable vs. Fixed LCTs:} Compare our adaptive LCTLayer against versions with fixed parameters corresponding to specific transforms (e.g., a fixed Fractional Fourier Transform layer).
+\end{itemize}
