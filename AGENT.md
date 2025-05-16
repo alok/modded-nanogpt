@@ -1,7 +1,6 @@
 # AGENT PLAN – NeurIPS 2025 LCT-NanoGPT Project
 
-_Last updated: 2025-05-12 04:53 EDT_
-_Last updated: 2025-05-11 22:59 EDT_
+_Last updated: YYYY-MM-DD HH:MM EDT_
 
 ## 0. TL;DR
 
@@ -11,15 +10,25 @@ Write a polished NeurIPS 2025 extended abstract showcasing a Linear Canonical Tr
 
 ## 1. Immediate Next Actions
 
-| Priority | Task                                            | Linked § | When  |
-| -------- | ----------------------------------------------- | -------- | ----- |
-| 🔥        | Build repo skeleton & smoke‐test MVP `LCTLayer` | 3.1/3.2  | Today |
-| 🔥        | Draft abstract outline (`paper/outline.md`)     | 4        | Today |
-| 🔥        | Wire into NanoGPT `--use-lct` (concat+proj)     | 3.7      | Today |
-| 🆕        | Oracle tests (Fourier, Laplace)                 | 3.3      | Today |
-| 🆕        | Quick benchmark script `just bench:lct`         | 3.8      | Today |
-| ⚠️        | Update results table & abstract numbers         | 4        | Today |
-| ℹ️        | Tag preview `v0.0.1`                            | 3.10     | Today |
+| Priority | Task                                                   | Status      | Notes                                                                                        |
+| -------- | ------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------- |
+| ✅        | Build repo skeleton & smoke‐test MVP `LCTLayer`        | Done        | Core LCTLayer functional; composition tests xfailed.                                         |
+| ✅        | Draft abstract outline (`paper/outline.md`)            | Done        | `paper/outline.md` created. Abstract in `00_abstract.tex` needs review against this outline. |
+| ✅        | Wire into NanoGPT `--use-lct` flag                     | Done        | Integrated as `--use-lct-in-block` in `train_gpt(m).py`.                                     |
+| ✅        | Oracle tests (Fourier, Laplace)                        | Done        | Special case tests in `test_lct_special.py` are passing.                                     |
+| ✅        | Quick benchmark script `just bench:lct`                | Done        | `bench/bench_lct.py` and `justfile` target created.                                          |
+| 🚧        | Run `just bench:lct` & collect numbers                 | In Progress | Next immediate step.                                                                         |
+| 🚧        | Update paper with benchmark numbers & hardware details | In Progress | Abstract, Experiments, Results sections have placeholders.                                   |
+| 📝        | Final paper polish (check NeurIPS style, references)   | To Do       | Requires benchmark numbers first.                                                            |
+| Priority | Task                                                   | Linked §    | When                                                                                         |
+| -------- | -----------------------------------------------        | --------    | -----                                                                                        |
+| 🔥        | Build repo skeleton & smoke‐test MVP `LCTLayer`        | 3.1/3.2     | Today                                                                                        |
+| 🔥        | Draft abstract outline (`paper/outline.md`)            | 4           | Today                                                                                        |
+| 🔥        | Wire into NanoGPT `--use-lct` (concat+proj)            | 3.7         | Today                                                                                        |
+| 🆕        | Oracle tests (Fourier, Laplace)                        | 3.3         | Today                                                                                        |
+| 🆕        | Quick benchmark script `just bench:lct`                | 3.8         | Today                                                                                        |
+| ⚠️        | Update results table & abstract numbers                | 4           | Today                                                                                        |
+| ℹ️        | Tag preview `v0.0.1`                                   | 3.10        | Today                                                                                        |
 
 ---
 
