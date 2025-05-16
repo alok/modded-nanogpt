@@ -5,13 +5,17 @@ alwaysApply: true
 ---
 ## Deliverables & Checklists
 
-### 1️⃣ Extended Abstract (≥2 pages, ≤4 pages)
-- [ ] Conform to NeurIPS 2025 **style & formatting** (double-column, 10-pt font).  
+### 1️⃣ Full Paper (≤9 pages main text, double‐column)  
+*Finish the complete NeurIPS 2025 submission, not just an extended abstract.*
+- [ ] Conform to NeurIPS 2025 **style & formatting** (double‐column, 10-pt font, ≤9 pages **main text** + references).  
   Reference: <https://neurips.cc/Conferences/2025/Submission>
-- [ ] Clear statement of problem & contribution.  
-  *Hint*: "We propose replacing Fourier-based linear layers with an adaptive LCT layer parameterised by \(a,b,c\) that strictly generalises the DFT."
-- [ ] Include empirical table comparing NanoGPT + LCT vs baseline.
-- [ ] Release **source \+ compiled PDF** in `paper/`.
+- [ ] Provide a **self-contained introduction, method, experiments, results, and discussion** narrative.  
+  Emphasise the novelty of adaptive LCT layers and their efficiency gains in NanoGPT.
+- [ ] Include all mandated NeurIPS artefacts: checklist, broader-impact statement, and dataset/model documentation.
+- [ ] Empirical table comparing NanoGPT + LCT vs baseline (tokens/s, perplexity).
+- [ ] Figures illustrating architecture, speed-accuracy trade-off, and ablation results.
+- [ ] Release **LaTeX source** and compiled **PDF** in `paper/`.
+- [ ] If possible, include a short (≤2-minute) demo video link in supplementary materials.
 
 ### 2️⃣ LCT Layer
 - [ ] Implement `class LCTLayer(nn.Module)` with learnable `a, b, c` (real scalars) and analytical inverse.
@@ -80,7 +84,7 @@ Whenever the same shell command is executed ≥3 times, propose a **Justfile** t
 2. **Integration** – NanoGPT runs with `--use-lct` replacing `nn.Linear`.
 3. **Benchmark** – tokens/s baseline vs LCT plotted; results saved in `img/`.
 4. **Special-Case Compliance** – Laplace, Fresnel, FrFT, unitarity tests green.
-5. **Paper** – Extended abstract PDF passes NeurIPS style checker.
+5. **Paper** – Full NeurIPS 2025 paper (≤9 pages) passes style checker and compiles.
 6. **Submission Package** – Tagged release `v0.1.0` with Zenodo DOI.
 
 ---
