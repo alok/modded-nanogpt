@@ -1,0 +1,21 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# NeurIPS Checklist Guidance Rule
+
+> All work contributing to the NeurIPS paper and agent coordination must consider the [NEURIPS_PAPER_CHECKLIST.md](mdc:NEURIPS_PAPER_CHECKLIST.md).
+
+## Scope
+Applies to edits on:
+* `**/*.tex` (all LaTeX files in the `sections/` directory and `main.tex`)
+* `AGENTS.md`
+
+## Policy Summary
+1. **Consult the Checklist**: Before and during writing or editing paper sections, review the [NEURIPS_PAPER_CHECKLIST.md](mdc:NEURIPS_PAPER_CHECKLIST.md) to ensure all relevant points are addressed.
+2. **Agent 3 Responsibility**: Agent 3 is primarily responsible for ensuring the checklist is comprehensively filled out. However, all agents contributing to the paper should be mindful of the checklist items relevant to their assigned sections.
+3. **Integration**: Ensure that justifications and references for checklist items are appropriately integrated into the paper content or supplemental materials.
+4. **Reproducibility**: Pay special attention to checklist items concerning reproducibility, limitations, ethics, and broader impacts.
+
+Following this rule will help ensure a compliant and high-quality NeurIPS submission.

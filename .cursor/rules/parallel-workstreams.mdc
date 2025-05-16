@@ -1,0 +1,23 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Parallel Workstreams Rule
+
+> All agents editing source code, documentation, or LaTeX must respect the parallel-workstream policy defined in [docs/agent_workstreams_2025-05-15.md](mdc:docs/agent_workstreams_2025-05-15.md).
+
+## Scope
+Applies to edits on:
+* `**/*.py`
+* `**/*.md`
+* `**/*.tex`
+
+## Policy Summary
+1. Choose the correct branch / worktree – `code`, `paper`, or `checklist` – before making changes.
+2. Do not modify files owned by another workstream; instead leave TODO comments or open an issue.
+3. Use semantic commit messages and commit frequently.
+4. After finishing, push to the corresponding branch and open a PR following the merge order:
+   1. `code` → 2. `paper` → 3. `checklist`.
+
+Following this rule prevents merge conflicts and enables parallel breadthwise progress toward the NeurIPS deadline.

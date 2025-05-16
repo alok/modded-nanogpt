@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [2025-05-12 04:53] Added distributed benchmarking support on Modal with H100s
 - (2025-05-16:12:00) NeurIPS paper scaffolding ported from `infnum`: section‐based LaTeX skeleton under `paper/sections/*` using local `neurips_2025.sty`.
 - New documentation `docs/lct_use_cases.md` describing three rapid-tuning neural activation use cases (Fresnel Vision Attention, Beam-Splash Diffusion, Mirror-Symmetry Mixer).
+- Added new Cursor rules ported from `infnum` to harmonise workflows:
+  - `.cursor/rules/image-extractor-usage.mdc` – guidance for viewing generated images via Screenpipe.
+  - `.cursor/rules/appendix-workflow.mdc` – appendix & artefacts handling.
+  - `.cursor/rules/neurips-checklist-guidance.mdc` – integrates NeurIPS paper checklist.
+  - `.cursor/rules/kernel-benchmarking.mdc` – micro-benchmark process for performance-critical kernels.
+  - `.cursor/rules/parallel-workstreams.mdc` – branch/worktree coordination policy.
 
 ### Changed
 

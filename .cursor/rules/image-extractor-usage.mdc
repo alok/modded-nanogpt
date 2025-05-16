@@ -1,0 +1,44 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Viewing Generated Images with `mcp-image-extractor`
+
+
+
+## How to View an Image
+1. Ensure the image is saved to disk.
+2. Call either of the two extract functions:
+   * `[mcp_image-extractor_extract_image_from_file]` – for local files
+   * `[mcp_image-extractor_extract_image_from_url]` – for web-hosted images
+3. Or call from base64
+4. **Always supply an absolute file path** when using `*_extract_image_from_file`.
+
+## Absolute Path Template
+The workspace root is at `/Users/alokbeniwal/modded-nanogpt`
+
+```text
+/Users/alokbeniwal/modded-nanogpt/<relative_path_to_image>
+```
+
+A quick way to build this path in docs or tool calls is:
+
+```bash
+$(pwd)/<relative_path_to_image>
+```
+
+## Example
+```jsonc
+{
+  "name": "mcp_image-extractor_extract_image_from_file",
+  "arguments": {
+    "file_path": "/Users/alokbeniwal/modded-nanogpt/img/example_plot.png"
+  }
+}
+```
+
+## Expectations for Agents
+* Prefer inspecting images yourselves rather than asking the user to open them.
+* Use these tools in debugging LaTeX, verifying plotted outputs, or reviewing generated figures before submission.
+* Reference this rule whenever you need to decide whether an image should be opened programmatically.
