@@ -41,104 +41,22 @@
 \maketitle
 
 % -----------------------------------------------------------------------------
-% Abstract (≤200 words).
+% Include externalised section files (generated 2025-05-16).
 % -----------------------------------------------------------------------------
-\begin{abstract}
-We propose replacing Fourier-based linear layers in large language models with a learnable \emph{Linear Canonical Transform} (\LCT) layer that strictly generalises the Discrete Fourier Transform. In \(4\times\) smaller models our \LCT{}-augmented NanoGPT matches the perplexity of the baseline while running \(1.23\times\) faster on A100 GPUs.
-\end{abstract}
 
-% -----------------------------------------------------------------------------
-\section{Introduction}\label{sec:introduction}
-% -----------------------------------------------------------------------------
-Large language models (LLMs) rely heavily on Fourier-like projections to capture global context.  However, the Discrete Fourier Transform (DFT) is only a single point in a broader three-parameter family of \
-Linear Canonical Transforms (LCTs).  We hypothesise that allowing the model to \
-learn the LCT parameters \(a,b,c\) yields richer inductive biases and improved parameter/performance trade-offs.
+\input{sections/00_abstract.tex}
+\input{sections/01_introduction.tex}
+\input{sections/02_related_work.tex}
+\input{sections/03_method.tex}
+\input{sections/04_experiments.tex}
+\input{sections/05_results.tex}
+\input{sections/06_discussion.tex}
+\input{sections/07_conclusion.tex}
+\input{sections/08_reproducibility.tex}
+\input{sections/99_checklist.tex}
 
-\paragraph{Contributions.} Our main contributions are:
-\begin{enumerate}
-  \item We introduce the \LCT{} layer — a drop-in replacement for Fourier projections with learnable parameters and analytical inverse.
-  \item We derive conditions under which the \LCT{} layer is unitary and show it reduces to several known transforms (Fourier, Fresnel, Laplace) as special cases.
-  \item We demonstrate competitive perplexity on WikiText-103 while achieving higher throughput and reduced memory footprint.
-\end{enumerate}
-
-% -----------------------------------------------------------------------------
-\section{Background}\label{sec:background}
-% -----------------------------------------------------------------------------
-Here we briefly review the theory of Linear Canonical Transforms and their relation to Fourier analysis.
-
-\paragraph{Discrete dilemma: unitarity \emph{vs.} exact group law.}  In the
-continuous domain the family of LCTs forms a faithful, unitary
-representation of the symplectic group $\mathrm{SL}(2,\mathbb R)$.  In a
-\emph{finite--length} setting, however, Pei--Ding\citep{pei1997} and
-Chen--Xiang\citep{chen2009} prove that no operator acting on a fixed grid of
-$N$ samples can simultaneously satisfy the following three properties for
-\emph{all} real $(a,b,c,d)$ with $ad-bc=1$:
-\begin{enumerate*}[label=\arabic*)]
-  \item exact $\ell^2$--unitarity, \item the exact composition (group) law,
-  \item a grid that is independent of $(a,b,c,d)$.
-\end{enumerate*}
-One must therefore choose.  We opt for the \textbf{unitary} discretisation
----~cross--term $-i2\pi nk/N$ and amplitude $e^{-i\pi\,\operatorname{sgn}b/4}/\sqrt{N}$~---
-because:
-\begin{itemize}
-  \item training with stochastic gradient descent repeatedly multiplies by
-        the forward and inverse transform; preserving norms avoids exploding
-        activations and gradients;
-  \item the backward pass of our layer is the Hermitian adjoint, so exact
-        unitarity gives a \emph{closed--form, numerically stable} gradient;
-  \item in practice we never compose two \LCT{}s with \emph{arbitrary} matrices
-        during inference; the model only learns \emph{one} set of parameters
-        per layer.
-\end{itemize}
-The alternative "group-exact but scaled" convention is nevertheless
-implemented behind a flag and used in our ablation study (App.~B).
-
-% -----------------------------------------------------------------------------
-\section{The \LCT{} Layer}\label{sec:lct-layer}
-% -----------------------------------------------------------------------------
-We implement the \LCT{} layer as a PyTorch module with three learnable scalar parameters \(a,b,c\).  The forward pass applies the transform in frequency space, while the inverse is computed analytically for gradient stability.
-
-% -----------------------------------------------------------------------------
-\section{Experiments}\label{sec:experiments}
-% -----------------------------------------------------------------------------
-We compare NanoGPT with and without the \LCT{} layer on multiple sequence modelling benchmarks.  Detailed experimental settings and hyper-parameters are provided in the supplementary material.
-
-\subsection{Throughput}
-Using mixed-precision bf16 training we measure tokens per second (t/s) on an 80-GB A100.  Our \LCT{} layer improves throughput by \(23\%\) relative to the baseline.
-
-\subsection{Accuracy}
-Table~\ref{tab:main-results} summarises the perplexity results.
-
-\begin{table}[h]
-  \centering
-  \caption{Perplexity on WikiText-103.  Lower is better.}
-  \label{tab:main-results}
-  \begin{tabular}{lcc}
-    \toprule
-    Model & Params & PPL \\
-    \midrule
-    NanoGPT (baseline) & 124M & 18.7 \\
-    NanoGPT + \LCT{} (ours) & 124M & 18.5 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-% -----------------------------------------------------------------------------
-\section{Conclusion}\label{sec:conclusion}
-% -----------------------------------------------------------------------------
-The \LCT{} layer strictly generalises Fourier projections and can be used as a drop-in replacement in Transformer architectures, offering speed/accuracy benefits with negligible implementation overhead.
-
-% -----------------------------------------------------------------------------
-% Acknowledgements (optional)
-% -----------------------------------------------------------------------------
-\begin{ack}
-We thank the anonymous reviewers for their insightful comments.
-\end{ack}
-
-% -----------------------------------------------------------------------------
-% References
 % -----------------------------------------------------------------------------
 \bibliographystyle{plainnat}
 \bibliography{references}
 
-\end{document} 
+\end{document}

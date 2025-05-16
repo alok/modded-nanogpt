@@ -1,0 +1,17 @@
+% -----------------------------------------------------------------------------
+\section{The \textsc{LCT} Layer}
+% -----------------------------------------------------------------------------
+We parameterise the discrete LCT by the symplectic matrix
+\[ S \;=\;
+  \begin{bmatrix} a & b \\ c & d
+\end{bmatrix}, \qquad ad - bc = 1. \]
+Only \((a,b,c)\) are learnable; we compute $d$ on the fly via the symplectic constraint.  When $a=0$ and $c=0$ the layer reduces to an orthonormal DFT.
+
+\subsection{Forward Pass}
+The transform factorises into a chirp phase, FFT, and a second chirp:
+\[ X = C_2 \, F \left( C_1 \odot x \right). \]
+This admits an $\mathcal{O}(N \log N)$ implementation building on
+\verb|torch.fft.fft| for GPU acceleration.
+
+\subsection{Inverse Pass}
+Because the discretisation is unitary, the backward pass is the Hermitian transpose of the forward kernel, yielding a closed‐form gradient.
